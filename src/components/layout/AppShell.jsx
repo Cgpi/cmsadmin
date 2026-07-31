@@ -117,14 +117,14 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user: user
           (collapsed && !isMobile) && 'justify-center',
         )}>
           <img
-            src={profile.avatar}
+            src={user.avatar}
             alt="User avatar"
             className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-white dark:ring-slate-700"
           />
           {(!collapsed || isMobile) && (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{profile.name}</p>
-              <Badge tone={profile.role === 'Super Admin' ? 'amberSolid' : 'amber'} size="sm" className="mt-0.5">{profile.role}</Badge>
+              <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{user.name}</p>
+              <Badge tone={user.role === 'Super Admin' ? 'amberSolid' : 'amber'} size="sm" className="mt-0.5">{user.role}</Badge>
             </div>
           )}
           {(!collapsed || isMobile) && (
@@ -187,7 +187,7 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user: user
 
       {/* Main */}
       <div className={cn('transition-[padding] duration-300 ease-in-out', collapsed ? 'md:pl-[72px]' : 'md:pl-64')}>
-        <Topbar pageTitle={pageTitle} profile={profile} onMenuClick={() => setMobileOpen(true)} />
+        <Topbar pageTitle={pageTitle} user={user} onMenuClick={() => setMobileOpen(true)} />
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
@@ -196,7 +196,7 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user: user
   )
 }
 
-function Topbar({ pageTitle, profile, onMenuClick }) {
+function Topbar({ pageTitle, user, onMenuClick }) {
   const { theme, toggleTheme } = useTheme()
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/80">
@@ -240,7 +240,7 @@ function Topbar({ pageTitle, profile, onMenuClick }) {
         <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900" />
       </button>
       <img
-        src={profile.avatar}
+        src={user.avatar}
         alt="User avatar"
         className="h-9 w-9 rounded-full object-cover ring-2 ring-white shadow-sm md:hidden dark:ring-slate-700"
       />
