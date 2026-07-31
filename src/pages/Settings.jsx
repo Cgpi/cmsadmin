@@ -6,28 +6,28 @@ import { Card } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useTheme } from '../components/ui/ThemeProvider'
+import { useAuth } from '../context/AuthContext'
 import { cn } from '../lib/utils'
-
-const subAdminUser = {
-  name: 'Rohan Deshpande',
-  role: 'Site Admin',
-  avatar: 'https://i.pravatar.cc/80?img=12',
-  email: 'rohan@vpcon-pune.in',
-}
 
 const inputBase =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500'
 
 export default function Settings() {
+  const { user } = useAuth()
+  const toast = useToast()
+  const { theme, toggleTheme } = useTheme()
+
+  const defaults = user
+    ? { name: user.name, email: user.email, avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(user.name)}&backgroundType=gradientLinear` }
+    : { name: '', email: '', avatar: '' }
+
   const [profile, setProfile] = useState({
-    name: subAdminUser.name,
-    email: subAdminUser.email,
+    name: defaults.name,
+    email: defaults.email,
   })
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' })
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
-  const { theme, toggleTheme } = useTheme()
-  const toast = useToast()
 
   const handleProfileSave = (e) => {
     e.preventDefault()
@@ -49,7 +49,7 @@ export default function Settings() {
   }
 
   return (
-    <AppShell pageTitle="Settings" user={subAdminUser}>
+    <AppShell pageTitle="Settings">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -73,7 +73,7 @@ export default function Settings() {
               {/* Avatar */}
               <div className="flex items-center gap-4">
                 <img
-                  src={subAdminUser.avatar}
+                  src={defaults.avatar}
                   alt="Avatar"
                   className="h-16 w-16 rounded-full object-cover ring-2 ring-amber-500/30"
                 />

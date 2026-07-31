@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Building2, Users, Truck, FileBarChart,
@@ -9,15 +9,32 @@ import {
 import { cn } from '../../lib/utils'
 import Badge from '../ui/Badge'
 import { useTheme } from '../ui/ThemeProvider'
-import navItems from './navItems'
+import { useAuth } from '../../context/AuthContext'
+import navItems, { superAdminNav } from './navItems'
 
 const iconMap = {
   LayoutDashboard, Building2, Users, Truck, FileBarChart,
   CalendarDays, FolderClosed, Settings, Images, MessageSquare,
 }
 
-export default function AppShell({ children, pageTitle = 'Dashboard', user }) {
-  const profile = user || { name: 'Marcus Vale', role: 'Site Admin', avatar: 'https://i.pravatar.cc/80?img=12' }
+const defaultUser = { name: 'Marcus Vale', role: 'Site Admin', avatar: 'https://i.pravatar.cc/80?img=12' }
+
+const avatarForName = (name) => {
+  const seed = encodeURIComponent(name || 'guest')
+  return `https://api.dicebear.com/9.x/initials/svg?seed=${seed}&backgroundType=gradientLinear`
+}
+
+export default function AppShell({ children, pageTitle = 'Dashboard', user: userProp }) {
+  const { user: authUser, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const user = userProp || (authUser ? {
+    name: authUser.name,
+    role: authUser.role === 'super_admin' ? 'Super Admin' : 'Site Admin',
+    avatar: avatarForName(authUser.name),
+  } : defaultUser)
+
+  const items = user.role === 'Super Admin' ? superAdminNav : navItems
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
@@ -63,7 +80,7 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user }) {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto scrollbar-thin px-3 py-4">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const Icon = iconMap[item.icon]
           const active = location.pathname === item.to
           return (
@@ -111,14 +128,14 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user }) {
             </div>
           )}
           {(!collapsed || isMobile) && (
-            <Link
-              to="/login"
+            <button
+              onClick={() => { logout(); navigate('/login') }}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors dark:hover:bg-slate-700 dark:hover:text-slate-300"
               title="Log out"
               aria-label="Log out"
             >
               <LogOut className="h-4 w-4" />
-            </Link>
+            </button>
           )}
         </div>
       </div>

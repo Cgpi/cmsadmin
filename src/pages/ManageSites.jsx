@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, MoreVertical, Pencil, Trash2, Power, PowerOff,
-  Plus, Building2, Mail, CalendarDays, AlertTriangle,
+  Plus, Building2, Mail, CalendarDays, AlertTriangle, Settings2,
 } from 'lucide-react'
 import AppShell from '../components/layout/AppShell'
 import { Card } from '../components/ui/Card'
@@ -16,13 +17,8 @@ import { useToast } from '../components/ui/Toast'
 import { sites as initialSites } from '../data/adminData'
 import { cn } from '../lib/utils'
 
-const superAdminUser = {
-  name: 'Adrian Vasquez',
-  role: 'Super Admin',
-  avatar: 'https://i.pravatar.cc/80?img=33',
-}
-
 export default function ManageSites() {
+  const navigate = useNavigate()
   const [sites, setSites] = useState(initialSites)
   const [query, setQuery] = useState('')
   const [formModal, setFormModal] = useState({ open: false, mode: 'create', initial: null })
@@ -83,6 +79,7 @@ export default function ManageSites() {
   }
 
   const rowActions = (site) => [
+    { label: 'Manage', icon: Settings2, onClick: () => navigate(`/admin/users/${site.id}/manage`) },
     { label: 'Edit', icon: Pencil, onClick: () => openEdit(site) },
     {
       label: site.status === 'active' ? 'Deactivate' : 'Activate',
@@ -93,7 +90,7 @@ export default function ManageSites() {
   ]
 
   return (
-    <AppShell pageTitle="Manage Sites" user={superAdminUser}>
+    <AppShell pageTitle="Manage Sites">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -163,7 +160,10 @@ export default function ManageSites() {
                       </td>
                       <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{formatDate(site.createdAt)}</td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => navigate(`/admin/users/${site.id}/manage`)}>
+                            <Settings2 className="h-4 w-4" /> Manage
+                          </Button>
                           <DropdownMenu items={rowActions(site)}>
                             <MoreVertical className="h-4 w-4" />
                           </DropdownMenu>
@@ -196,10 +196,13 @@ export default function ManageSites() {
                       <CalendarDays className="h-3.5 w-3.5" /> {formatDate(site.createdAt)}
                     </div>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-3 flex items-center justify-between">
                     <Badge tone={site.status === 'active' ? 'green' : 'neutral'} dot>
                       {site.status === 'active' ? 'Active' : 'Inactive'}
                     </Badge>
+                    <Button variant="secondary" size="sm" onClick={() => navigate(`/admin/users/${site.id}/manage`)}>
+                      <Settings2 className="h-4 w-4" /> Manage
+                    </Button>
                   </div>
                 </Card>
               ))}

@@ -4,24 +4,32 @@ import { motion } from 'framer-motion'
 import { Mail, Lock, HardHat, ArrowRight } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../context/AuthContext'
 
 const heroImg = 'https://images.pexels.com/photos/17297091/pexels-photo-17297091.jpeg?auto=compress&cs=tinysrgb&h=1200&w=900'
 
 export default function Login() {
-  const [email, setEmail] = useState('marcus@vpconstruction.com')
-  const [password, setPassword] = useState('••••••••')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const toast = useToast()
+  const { login } = useAuth()
 
   const handleSubmit = (e) => {
     e.preventDefault()
     setLoading(true)
     setTimeout(() => {
+      const result = login({ email, password })
       setLoading(false)
-      toast.success('Welcome back, Rohan.', { title: 'Signed in successfully' })
-      navigate('/dashboard')
-    }, 1500)
+      if (result.success) {
+        toast.success(`Welcome back, ${result.user.name}.`, { title: 'Signed in successfully' })
+        navigate(result.user.role === 'super_admin' ? '/admin/dashboard' : '/dashboard')
+      } else {
+        toast.error('Invalid email or password.')
+        setPassword('')
+      }
+    }, 1200)
   }
 
   return (
@@ -67,6 +75,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
+              required
             />
             <Field
               label="Password"
@@ -75,14 +84,15 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              required
             />
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-slate-600">
+              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" defaultChecked />
                 Remember me
               </label>
-              <a href="#" className="text-sm font-medium text-amber-700 hover:text-amber-800 transition-colors">Forgot password?</a>
+              <a href="#" className="text-sm font-medium text-amber-700 hover:text-amber-800 transition-colors dark:text-amber-400">Forgot password?</a>
             </div>
 
             <Button type="submit" size="lg" loading={loading} className="w-full">
@@ -91,9 +101,20 @@ export default function Login() {
             </Button>
           </motion.form>
 
-          <p className="mt-8 text-center text-xs text-slate-400">
-            Demo build — no real authentication. Any credentials work.
-          </p>
+          {/* Demo credentials helper */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="mt-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Demo Credentials</p>
+            <div className="mt-2 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <p><span className="font-medium text-slate-700 dark:text-slate-300">Super Admin:</span> admin@vpconstruction.com</p>
+              <p><span className="font-medium text-slate-700 dark:text-slate-300">Sub-Admin:</span> user1@vpconstruction.com</p>
+              <p className="pt-1 text-slate-400 dark:text-slate-500">Password for both: <span className="font-mono font-medium text-amber-600">password</span></p>
+            </div>
+          </motion.div>
         </motion.div>
       </div>
 
@@ -123,7 +144,7 @@ export default function Login() {
 function Field({ label, icon: Icon, ...props }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
       <div className="relative">
         <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input

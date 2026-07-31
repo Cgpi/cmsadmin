@@ -7,13 +7,8 @@ import { Card } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import UploadImageModal from '../components/admin/UploadImageModal'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../context/AuthContext'
 import { images, computeImageStats } from '../data/imageData'
-
-const subAdminUser = {
-  name: 'Rohan Deshpande',
-  role: 'Site Admin',
-  avatar: 'https://i.pravatar.cc/80?img=12',
-}
 
 const stats = computeImageStats(images)
 
@@ -36,6 +31,9 @@ export default function Dashboard() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const firstName = (user?.name || 'Rohan').split(' ')[0]
+  const siteName = user?.site_name || 'vp-construction-pune'
 
   const handleUpload = (formData) => {
     setUploadOpen(false)
@@ -43,7 +41,7 @@ export default function Dashboard() {
   }
 
   return (
-    <AppShell pageTitle="Dashboard" user={subAdminUser}>
+    <AppShell pageTitle="Dashboard">
       <motion.div
         variants={container}
         initial="hidden"
@@ -54,8 +52,8 @@ export default function Dashboard() {
         <motion.div variants={item}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Welcome back, Rohan</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage images and messages for vp-construction-pune.</p>
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Welcome back, {firstName}</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage images and messages for {siteName}.</p>
             </div>
           </div>
         </motion.div>

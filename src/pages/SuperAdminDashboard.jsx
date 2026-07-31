@@ -9,12 +9,7 @@ import { Card } from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { sites, recentActivity, computeStats, relativeTime } from '../data/adminData'
-
-const superAdminUser = {
-  name: 'Adrian Vasquez',
-  role: 'Super Admin',
-  avatar: 'https://i.pravatar.cc/80?img=33',
-}
+import { useAuth } from '../context/AuthContext'
 
 const stats = computeStats(sites)
 
@@ -46,8 +41,10 @@ const item = {
 }
 
 export default function SuperAdminDashboard() {
+  const { user } = useAuth()
+  const firstName = (user?.name || 'Adrian').split(' ')[0]
   return (
-    <AppShell pageTitle="Dashboard" user={superAdminUser}>
+    <AppShell pageTitle="Dashboard">
       <motion.div
         variants={container}
         initial="hidden"
@@ -58,7 +55,7 @@ export default function SuperAdminDashboard() {
         <motion.div variants={item}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Welcome back, Adrian</h2>
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Welcome back, {firstName}</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Here's the platform overview across all client sites.</p>
             </div>
             <Badge tone="amberSolid" dot>Super Admin</Badge>
