@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Pencil, Trash2, Power, PowerOff, GripVertical, ImageIcon, AlertTriangle,
@@ -10,18 +10,36 @@ import Modal from './Modal'
 import EmptyState from './EmptyState'
 import UploadImageModal from '../admin/UploadImageModal'
 import { useToast } from './Toast'
-import { images as initialImages, locations, countByLocation } from '../../data/imageData'
+import { locations, fetchImages, createImage, updateImage, deleteImage, countByLocation } from '../../data/imageData'
 import { cn } from '../../lib/utils'
 
 const tabs = ['All', ...locations]
 
 export default function ImageGallery({ siteName }) {
-  const [images, setImages] = useState(initialImages)
+  const [images, setImages] = useState([])
   const [activeTab, setActiveTab] = useState('All')
   const [activeOnly, setActiveOnly] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const [uploadModal, setUploadModal] = useState({ open: false, mode: 'create', initial: null })
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [loading, setLoading] = useState(true)
   const toast = useToast()
+  const submitRef = useRef(false)
+
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      setLoading(true)
+      const data = await fetchImages({ location: activeTab, activeOnly })
+      if (!mounted) return
+      setImages(data)
+      setLoading(false)
+    }
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [activeTab, activeOnly])
 
   const counts = useMemo(() => countByLocation(images), [images])
 
@@ -33,36 +51,71 @@ export default function ImageGallery({ siteName }) {
     }).sort((a, b) => a.order - b.order)
   }, [images, activeTab, activeOnly])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab, activeOnly, images.length])
+
+  const itemsPerPage = 21
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
+  const pageStart = (currentPage - 1) * itemsPerPage
+  const pageEnd = Math.min(filtered.length, pageStart + itemsPerPage)
+  const currentPageImages = filtered.slice(pageStart, pageEnd)
+
   const openCreate = () => setUploadModal({ open: true, mode: 'create', initial: null })
   const openEdit = (img) => setUploadModal({ open: true, mode: 'edit', initial: img })
 
-  const handleSubmit = (formData) => {
-    if (uploadModal.mode === 'create') {
-      const locImages = images.filter((i) => i.location === formData.location)
-      const newImg = {
-        ...formData,
-        id: Date.now(),
-        url: formData.url,
-        order: locImages.length + 1,
+  const handleSubmit = async (formData) => {
+    if (submitRef.current) return
+    submitRef.current = true
+    try {
+      if (uploadModal.mode === 'create') {
+        const response = await createImage(formData)
+        if (!response) throw new Error('Upload failed')
+        setImages((prev) => {
+          if (prev.some((item) => item.id === response.id)) {
+            return prev.map((item) => (item.id === response.id ? response : item))
+          }
+          return [response, ...prev]
+        })
+        toast.success(`Image added to ${response.location}.`, { title: 'Image uploaded' })
+      } else {
+        const response = await updateImage(uploadModal.initial.id, formData)
+        if (!response) throw new Error('Update failed')
+        setImages((prev) => prev.map((i) => (i.id === response.id ? response : i)))
+        toast.success('Image details updated.', { title: 'Changes saved' })
       }
-      setImages((prev) => [newImg, ...prev])
-      toast.success(`Image added to ${formData.location}.`, { title: 'Image uploaded' })
-    } else {
-      setImages((prev) => prev.map((i) => (i.id === uploadModal.initial.id ? { ...i, ...formData } : i)))
-      toast.success('Image details updated.', { title: 'Changes saved' })
+      setUploadModal({ open: false, mode: 'create', initial: null })
+    } catch (error) {
+      toast.error(error.message || 'Unable to save image. Please try again.')
+    } finally {
+      submitRef.current = false
     }
-    setUploadModal({ open: false, mode: 'create', initial: null })
   }
 
-  const toggleActive = (img) => {
-    setImages((prev) => prev.map((i) => (i.id === img.id ? { ...i, active: !img.active } : i)))
-    toast.info(`"${img.title || 'Untitled'}" is now ${img.active ? 'inactive' : 'active'}.`)
+  const toggleActive = async (img) => {
+    try {
+      const response = await updateImage(img.id, {
+        ...img,
+        active: !img.active,
+      })
+      if (!response) throw new Error('Unable to update image status')
+      setImages((prev) => prev.map((i) => (i.id === response.id ? response : i)))
+      toast.info(`"${response.title || 'Untitled'}" is now ${response.active ? 'active' : 'inactive'}.`)
+    } catch (error) {
+      toast.error(error.message || 'Unable to change image status.')
+    }
   }
 
-  const confirmDelete = () => {
-    setImages((prev) => prev.filter((i) => i.id !== deleteTarget.id))
-    toast.success(`"${deleteTarget.title || 'Untitled'}" was deleted.`)
-    setDeleteTarget(null)
+  const confirmDelete = async () => {
+    try {
+      const success = await deleteImage(deleteTarget.id)
+      if (!success) throw new Error('Delete failed')
+      setImages((prev) => prev.filter((i) => i.id !== deleteTarget.id))
+      toast.success(`"${deleteTarget.title || 'Untitled'}" was deleted.`)
+      setDeleteTarget(null)
+    } catch (error) {
+      toast.error(error.message || 'Unable to delete image.')
+    }
   }
 
   const tabCount = (tab) => (tab === 'All' ? images.length : counts[tab] || 0)
@@ -115,6 +168,11 @@ export default function ImageGallery({ siteName }) {
 
       {/* Grid or empty state */}
       {filtered.length === 0 ? (
+        loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+            Loading images...
+          </div>
+        ) : (
         <EmptyState
           icon={ImageIcon}
           title={activeOnly ? 'No active images here' : 'No images yet'}
@@ -125,28 +183,62 @@ export default function ImageGallery({ siteName }) {
           }
           action={<Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" /> Upload Image</Button>}
         />
+        )
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <AnimatePresence mode="popLayout">
-            {filtered.map((img) => (
-              <motion.div
-                key={img.id}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <ImageCard
-                  image={img}
-                  onEdit={() => openEdit(img)}
-                  onToggle={() => toggleActive(img)}
-                  onDelete={() => setDeleteTarget(img)}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <AnimatePresence mode="popLayout">
+              {currentPageImages.map((img) => (
+                <motion.div
+                  key={img.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <ImageCard
+                    image={img}
+                    onEdit={() => openEdit(img)}
+                    onToggle={() => toggleActive(img)}
+                    onDelete={() => setDeleteTarget(img)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing <span className="font-semibold text-slate-900 dark:text-white">{pageStart + 1}</span>
+                {' '}to <span className="font-semibold text-slate-900 dark:text-white">{pageEnd}</span>
+                {' '}of <span className="font-semibold text-slate-900 dark:text-white">{filtered.length}</span> images
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="min-w-[80px] text-center text-sm font-medium">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Upload / Edit modal */}
@@ -194,6 +286,8 @@ function ImageCard({ image, onEdit, onToggle, onDelete }) {
           src={image.url}
           alt={image.title || 'Site image'}
           loading="lazy"
+          decoding="async"
+          fetchpriority={image.order <= 3 ? 'high' : 'low'}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {/* gradient overlay on hover */}

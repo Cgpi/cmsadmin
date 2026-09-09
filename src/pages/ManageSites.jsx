@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   Search, MoreVertical, Pencil, Trash2, Power, PowerOff,
   Plus, Building2, Mail, CalendarDays, AlertTriangle, Settings2,
@@ -14,17 +14,42 @@ import DropdownMenu from '../components/ui/DropdownMenu'
 import EmptyState from '../components/ui/EmptyState'
 import SiteFormModal from '../components/admin/SiteFormModal'
 import { useToast } from '../components/ui/Toast'
-import { sites as initialSites } from '../data/adminData'
+import {
+  fetchAdminUsers,
+  createAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
+} from '../data/adminUsers'
 import { cn } from '../lib/utils'
 
 export default function ManageSites() {
   const navigate = useNavigate()
-  const [sites, setSites] = useState(initialSites)
+  const [sites, setSites] = useState([])
   const [query, setQuery] = useState('')
   const [formModal, setFormModal] = useState({ open: false, mode: 'create', initial: null })
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const toast = useToast()
+
+  const loadSites = async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const data = await fetchAdminUsers()
+      setSites(data)
+    } catch (err) {
+      setError(err?.message || 'Unable to load sites.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSites()
+  }, [])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -37,45 +62,54 @@ export default function ManageSites() {
   const openCreate = () => setFormModal({ open: true, mode: 'create', initial: null })
   const openEdit = (site) => setFormModal({ open: true, mode: 'edit', initial: site })
 
-  const handleSubmit = (formData) => {
-    if (formModal.mode === 'create') {
-      const newSite = {
-        ...formData,
-        id: Date.now(),
-        createdAt: new Date().toISOString().slice(0, 10),
-        images: 0,
-        messages: 0,
-        status: formData.active ? 'active' : 'inactive',
+  const handleSubmit = async (formData) => {
+    try {
+      if (formModal.mode === 'create') {
+        await createAdminUser(formData)
+        // Reload from API to ensure we display the returned/normalized object correctly
+        await loadSites()
+        toast.success(`Site "${formData.siteName}" was created.`, { title: 'Site created successfully' })
+      } else {
+        await updateAdminUser(formModal.initial.id, formData)
+        // Reload to reflect server-side canonical data
+        await loadSites()
+        toast.success(`Site "${formData.siteName}" was updated.`, { title: 'Changes saved' })
       }
-      setSites((prev) => [newSite, ...prev])
-      toast.success(`Site "${formData.siteName}" was created.`, { title: 'Site created successfully' })
-    } else {
-      setSites((prev) =>
-        prev.map((s) =>
-          s.id === formModal.initial.id
-            ? { ...s, ...formData, status: formData.active ? 'active' : 'inactive' }
-            : s,
-        ),
-      )
-      toast.success(`Site "${formData.siteName}" was updated.`, { title: 'Changes saved' })
+      setFormModal({ open: false, mode: 'create', initial: null })
+    } catch (err) {
+      toast.error(err?.message || 'Unable to save site.')
     }
-    setFormModal({ open: false, mode: 'create', initial: null })
   }
 
-  const toggleStatus = (site) => {
-    setSites((prev) =>
-      prev.map((s) =>
-        s.id === site.id ? { ...s, status: s.status === 'active' ? 'inactive' : 'active' } : s,
-      ),
-    )
-    const nowActive = site.status !== 'active'
-    toast.info(`"${site.siteName}" is now ${nowActive ? 'active' : 'inactive'}.`)
+  const toggleStatus = async (site) => {
+    try {
+      const updated = await updateAdminUser(site.id, {
+        contactName: site.contactName,
+        email: site.email,
+        active: !site.active,
+      })
+      setSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+      toast.info(`"${site.siteName}" is now ${updated.active ? 'active' : 'inactive'}.`)
+    } catch (err) {
+      toast.error(err?.message || 'Unable to update status.')
+    }
   }
 
-  const confirmDelete = () => {
-    setSites((prev) => prev.filter((s) => s.id !== deleteTarget.id))
-    toast.success(`"${deleteTarget.siteName}" was permanently removed.`)
-    setDeleteTarget(null)
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+
+    try {
+      const deleted = await deleteAdminUser(deleteTarget.id)
+      if (!deleted) {
+        throw new Error('Delete failed.')
+      }
+      setSites((prev) => prev.filter((s) => s.id !== deleteTarget.id))
+      toast.success(`"${deleteTarget.siteName}" was permanently removed.`)
+    } catch (err) {
+      toast.error(err?.message || 'Unable to delete site.')
+    } finally {
+      setDeleteTarget(null)
+    }
   }
 
   const rowActions = (site) => [
@@ -122,8 +156,16 @@ export default function ManageSites() {
           />
         </div>
 
-        {/* Empty state */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <Card className="p-8 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">Loading sites...</p>
+          </Card>
+        ) : error ? (
+          <Card className="p-8 text-center">
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
+            <Button variant="secondary" className="mt-4" onClick={loadSites}>Retry</Button>
+          </Card>
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={Building2}
             title="No sites found"

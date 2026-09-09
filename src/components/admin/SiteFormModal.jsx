@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
+import { useToast } from '../ui/Toast'
 import { cn } from '../../lib/utils'
 
 const empty = { siteName: '', contactName: '', email: '', password: '', active: true }
 
 export default function SiteFormModal({ open, onClose, mode = 'create', initial, onSubmit }) {
+  const toast = useToast()
   const [form, setForm] = useState(() => ({ ...empty, ...initial }))
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
@@ -20,6 +22,16 @@ export default function SiteFormModal({ open, onClose, mode = 'create', initial,
       setShowPw(false)
     }
   }
+
+  // ensure the internal form is reset whenever the modal opens or `initial` changes
+  // so the edit mode shows prefilled values.
+  useEffect(() => {
+    if (open) {
+      setForm({ ...empty, ...initial })
+      setErrors({})
+      setShowPw(false)
+    }
+  }, [open, initial])
 
   const set = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }))
@@ -38,14 +50,24 @@ export default function SiteFormModal({ open, onClose, mode = 'create', initial,
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = (ev) => {
+  const handleSubmit = async (ev) => {
     ev.preventDefault()
     if (!validate()) return
+    if (loading) return
     setLoading(true)
-    setTimeout(() => {
+
+    try {
+      // Delegate actual API work to parent and wait for it to finish.
+      await onSubmit?.(form)
+    } catch (err) {
+      const msg = err?.message || 'Unable to save site. Please try again.'
+      toast.error(msg)
       setLoading(false)
-      onSubmit?.(form)
-    }, 1200)
+      return
+    }
+
+    // Parent typically closes the modal by updating props; ensure loading turns off.
+    setLoading(false)
   }
 
   return (

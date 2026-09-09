@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Eye, Images, MessageSquare } from 'lucide-react'
@@ -7,8 +7,7 @@ import { Card } from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import ImageGallery from '../components/ui/ImageGallery'
 import ContactInbox from '../components/ui/ContactInbox'
-import { sites } from '../data/adminData'
-import { useAuth } from '../context/AuthContext'
+import { fetchAdminUser } from '../data/adminUsers'
 import { cn } from '../lib/utils'
 
 const superAdminUser = {
@@ -25,8 +24,34 @@ const tabs = [
 export default function ManageSite() {
   const { id } = useParams()
   const [activeTab, setActiveTab] = useState('images')
+  const [site, setSite] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const site = sites.find((s) => s.id === Number(id))
+  useEffect(() => {
+    const loadSite = async () => {
+      setLoading(true)
+      setError(null)
+      setSite(null)
+
+      try {
+        const data = await fetchAdminUser(id)
+        if (!data) {
+          setError('This site could not be found.')
+        } else {
+          setSite(data)
+        }
+      } catch (err) {
+        setError(err?.message || 'Unable to load site details.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (id) {
+      loadSite()
+    }
+  }, [id])
 
   return (
     <AppShell pageTitle="Manage Site" user={superAdminUser}>
@@ -36,7 +61,6 @@ export default function ManageSite() {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="space-y-6"
       >
-        {/* Back link */}
         <Link
           to="/admin/users"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
@@ -44,7 +68,18 @@ export default function ManageSite() {
           <ArrowLeft className="h-4 w-4" /> Back to Sites
         </Link>
 
-        {!site ? (
+        {loading ? (
+          <Card className="p-12 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">Loading site details...</p>
+          </Card>
+        ) : error ? (
+          <Card className="p-12 text-center">
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
+            <Link to="/admin/users" className="mt-3 inline-block text-sm font-medium text-amber-600 hover:text-amber-700">
+              Return to all sites
+            </Link>
+          </Card>
+        ) : !site ? (
           <Card className="p-12 text-center">
             <p className="text-sm text-slate-500 dark:text-slate-400">This site could not be found.</p>
             <Link to="/admin/users" className="mt-3 inline-block text-sm font-medium text-amber-600 hover:text-amber-700">
@@ -53,7 +88,6 @@ export default function ManageSite() {
           </Card>
         ) : (
           <>
-            {/* Viewing-as banner */}
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
               <Eye className="h-4 w-4 shrink-0 text-amber-600" />
               <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
@@ -62,7 +96,6 @@ export default function ManageSite() {
               <Badge tone="amberSolid" size="sm" className="ml-auto">Super Admin Mode</Badge>
             </div>
 
-            {/* Site header */}
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{site.siteName}</h2>
@@ -76,7 +109,6 @@ export default function ManageSite() {
               </Badge>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
               {tabs.map((tab) => {
                 const Icon = tab.icon
@@ -105,7 +137,6 @@ export default function ManageSite() {
               })}
             </div>
 
-            {/* Tab content */}
             <div>
               {activeTab === 'images' && <ImageGallery siteName={site.siteName} />}
               {activeTab === 'messages' && <ContactInbox siteName={site.siteName} />}

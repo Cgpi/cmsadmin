@@ -42,6 +42,16 @@ function RequireAuth({ role, children }) {
   return children
 }
 
+function RootRoute() {
+  const { user } = useAuth()
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <Navigate to={user.role === 'super_admin' ? '/admin/dashboard' : '/dashboard'} replace />
+}
+
 function AnimatedRoutes() {
   const location = useLocation()
   return (
@@ -55,7 +65,7 @@ function AnimatedRoutes() {
         transition={pageTransition}
       >
         <Routes location={location}>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<RootRoute />} />
           <Route path="/login" element={<Login />} />
           {/* Sub-admin section */}
           <Route path="/dashboard" element={<RequireAuth role="user"><Dashboard /></RequireAuth>} />
@@ -94,3 +104,4 @@ export default function App() {
     </ThemeProvider>
   )
 }
+

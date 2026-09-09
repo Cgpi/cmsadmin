@@ -16,20 +16,20 @@ export default function Login() {
   const toast = useToast()
   const { login } = useAuth()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => {
-      const result = login({ email, password })
-      setLoading(false)
-      if (result.success) {
-        toast.success(`Welcome back, ${result.user.name}.`, { title: 'Signed in successfully' })
-        navigate(result.user.role === 'super_admin' ? '/admin/dashboard' : '/dashboard')
-      } else {
-        toast.error('Invalid email or password.')
-        setPassword('')
-      }
-    }, 1200)
+
+    const result = await login({ email, password })
+    setLoading(false)
+
+    if (result.success) {
+      toast.success(`Welcome back, ${result.user.name}.`, { title: 'Signed in successfully' })
+      navigate(result.user.role === 'super_admin' ? '/admin/dashboard' : '/dashboard')
+    } else {
+      toast.error(result.error || 'Invalid email or password.')
+      setPassword('')
+    }
   }
 
   return (

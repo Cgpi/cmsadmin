@@ -1,27 +1,142 @@
-// Dummy image data for the Sub-Admin "My Images" section. UI-only.
+import { getApiBaseUrl, getAuthHeaders } from '../context/AuthContext'
 
 export const locations = ['Home', 'Gallery', 'About', 'Services']
 
-// 12 dummy images spread across the four locations, using real Pexels stock photos.
-export const images = [
-  { id: 1, title: 'Riverside Tower — Aerial', location: 'Home', active: true, order: 1, url: 'https://images.pexels.com/photos/25461690/pexels-photo-25461690.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 2, title: 'Steel Framework', location: 'Home', active: true, order: 2, url: 'https://images.pexels.com/photos/31197870/pexels-photo-31197870.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 3, title: 'Urban Site Overview', location: 'Home', active: false, order: 3, url: 'https://images.pexels.com/photos/13758319/pexels-photo-13758319.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
+// Compatibility export for dashboard stats and legacy imports.
+export const images = []
 
-  { id: 4, title: 'Scaffolding Detail', location: 'Gallery', active: true, order: 1, url: 'https://images.pexels.com/photos/37031068/pexels-photo-37031068.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 5, title: 'High-Rise Construction', location: 'Gallery', active: true, order: 2, url: 'https://images.pexels.com/photos/13094084/pexels-photo-13094084.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 6, title: 'Concrete Structure', location: 'Gallery', active: true, order: 3, url: 'https://images.pexels.com/photos/7108785/pexels-photo-7108785.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 7, title: 'Cranes at Dusk', location: 'Gallery', active: false, order: 4, url: 'https://images.pexels.com/photos/35632880/pexels-photo-35632880.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
+export const placeholderPreview =
+  'https://images.pexels.com/photos/33628380/pexels-photo-33628380.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'
 
-  { id: 8, title: 'Our Team On-Site', location: 'About', active: true, order: 1, url: 'https://images.pexels.com/photos/69483/pexels-photo-69483.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 9, title: 'Project in Progress', location: 'About', active: true, order: 2, url: 'https://images.pexels.com/photos/9562581/pexels-photo-9562581.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
+const GALLERY_API_FALLBACK_TOKEN =
+  'vp6SSe9mP2bNLeagcrEQllCVZJU9e7ncBBKxD4hM14sVYql8MyQC4Yp6pKf0gQTN'
 
-  { id: 10, title: 'Excavation Services', location: 'Services', active: true, order: 1, url: 'https://images.pexels.com/photos/17638341/pexels-photo-17638341.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 11, title: 'Crane Operations', location: 'Services', active: true, order: 2, url: 'https://images.pexels.com/photos/10176177/pexels-photo-10176177.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 12, title: 'Steel Erection', location: 'Services', active: false, order: 3, url: 'https://images.pexels.com/photos/35155685/pexels-photo-35155685.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-]
+export function normalizeImage(item) {
+  return {
+    id: item.id,
+    title: item.title || 'Untitled',
+    location: item.location ? capitalize(item.location) : 'Gallery',
+    active: item.is_active ?? false,
+    order: item.sort_order ?? 0,
+    url: item.image_url || item.image_path || placeholderPreview,
+    raw: item,
+  }
+}
 
-// Sub-admin dashboard stats derived from the images array.
+function capitalize(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/(^|\s)\w/g, (match) => match.toUpperCase())
+}
+
+export async function fetchImages({ location, activeOnly } = {}) {
+  try {
+    const params = new URLSearchParams()
+    if (location && location !== 'All') {
+      params.set('location', location.toLowerCase())
+    }
+    if (activeOnly) {
+      params.set('active_only', 'true')
+    }
+    const query = params.toString() ? `?${params.toString()}` : ''
+
+    const headers = { ...getAuthHeaders() }
+    if (!headers['X-authorization'] && !headers.Authorization) {
+      headers['X-Authorization'] = `Bearer ${GALLERY_API_FALLBACK_TOKEN}`
+      headers.Authorization = `Bearer ${GALLERY_API_FALLBACK_TOKEN}`
+    }
+
+    const res = await fetch(`${getApiBaseUrl()}/images${query}`, {
+      method: 'GET',
+      headers,
+    })
+
+    if (!res.ok) {
+      throw new Error(`Failed to load images: ${res.status}`)
+    }
+
+    const payload = await res.json().catch(() => [])
+    if (!Array.isArray(payload)) return []
+    return payload.map(normalizeImage)
+  } catch (err) {
+    return []
+  }
+}
+
+export async function fetchImage(id) {
+  if (!id) return null
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/images/${id}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    })
+    if (!res.ok) return null
+
+    const payload = await res.json().catch(() => null)
+    return payload ? normalizeImage(payload) : null
+  } catch {
+    return null
+  }
+}
+
+export async function createImage({ file, title, location, is_active, sort_order }) {
+  const form = new FormData()
+  if (file) form.append('image', file)
+  if (title !== undefined) form.append('title', title)
+  if (location !== undefined) form.append('location', location.toLowerCase())
+  if (is_active !== undefined) form.append('is_active', String(is_active))
+  if (sort_order !== undefined) form.append('sort_order', String(sort_order))
+
+  const res = await fetch(`${getApiBaseUrl()}/images`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+    },
+    body: form,
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to upload image: ${res.status}`)
+  }
+  const payload = await res.json().catch(() => null)
+  return payload ? normalizeImage(payload) : null
+}
+
+export async function updateImage(id, changes) {
+  if (!id) return null
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/images/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        title: changes.title,
+        location: changes.location?.toLowerCase(),
+        is_active: changes.active,
+        sort_order: changes.order,
+      }),
+    })
+    if (!res.ok) {
+      throw new Error(`Failed to update image: ${res.status}`)
+    }
+    const payload = await res.json().catch(() => null)
+    return payload ? normalizeImage(payload) : null
+  } catch {
+    return null
+  }
+}
+
+export async function deleteImage(id) {
+  if (!id) return false
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/images/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 export function computeImageStats(imageList) {
   return {
     totalImages: imageList.length,
@@ -36,7 +151,3 @@ export function countByLocation(imageList) {
     return acc
   }, {})
 }
-
-// Placeholder preview image used by the upload modal's "selected" state.
-export const placeholderPreview =
-  'https://images.pexels.com/photos/33628380/pexels-photo-33628380.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'

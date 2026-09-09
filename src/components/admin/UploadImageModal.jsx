@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { UploadCloud, ImageIcon, CheckCircle2 } from 'lucide-react'
 import Modal from '../ui/Modal'
@@ -15,15 +15,28 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
     ...initial,
   }))
   const [selected, setSelected] = useState(false)
+  const [file, setFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState('')
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const fileInputRef = useRef(null)
+  const submittingRef = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
 
   const reset = () => {
     setForm({ title: '', location: 'Gallery', order: 1, active: true, ...initial })
     setSelected(false)
+    setFile(null)
+    setPreviewUrl('')
     setUploading(false)
     setProgress(0)
+    submittingRef.current = false
   }
 
   const handleClose = () => {
@@ -33,24 +46,39 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
-  const simulateSelect = () => {
+  const openFilePicker = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (event) => {
+    const picked = event.target.files?.[0]
+    if (!picked) return
     setSelected(true)
-    setProgress(0)
+    setFile(picked)
+    setPreviewUrl(URL.createObjectURL(picked))
   }
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!selected && mode === 'create') return
+    if (uploading || submittingRef.current) return
+
+    submittingRef.current = true
     setUploading(true)
     setProgress(0)
 
-    // simulate progressive upload
     const tick = setInterval(() => {
       setProgress((p) => {
         if (p >= 100) {
           clearInterval(tick)
           setUploading(false)
-          onSubmit?.({ ...form, url: placeholderPreview })
+          onSubmit?.({
+            ...form,
+            file,
+            url: previewUrl || placeholderPreview,
+            is_active: form.active,
+            sort_order: form.order,
+          })
           reset()
           return 100
         }
@@ -68,45 +96,57 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-        {/* Dropzone / preview */}
         {mode === 'create' && (
           <div>
             {!selected ? (
-              <button
-                type="button"
-                onClick={simulateSelect}
-                onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setDragging(false); simulateSelect() }}
-                className={cn(
-                  'flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-                  dragging
-                    ? 'border-amber-400 bg-amber-50'
-                    : 'border-slate-200 bg-slate-50/60 hover:border-amber-300 hover:bg-amber-50/40 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-amber-500/40 dark:hover:bg-amber-500/5',
-                )}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm ring-1 ring-slate-200">
-                  <UploadCloud className="h-6 w-6" />
-                </div>
-                <p className="mt-3 text-sm font-medium text-slate-700 dark:text-slate-200">Drag and drop your image here</p>
-                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">PNG, JPG up to 5MB</p>
-                <span className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                  Browse files
-                </span>
-              </button>
-            ) : (
-              <div className="relative overflow-hidden rounded-xl border border-slate-200">
-                <img src={placeholderPreview} alt="Selected preview" className="h-48 w-full object-cover" />
+              <>
                 <button
                   type="button"
-                  onClick={() => setSelected(false)}
+                  onClick={openFilePicker}
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => { e.preventDefault(); setDragging(false); openFilePicker() }}
+                  className={cn(
+                    'flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
+                    dragging
+                      ? 'border-amber-400 bg-amber-50'
+                      : 'border-slate-200 bg-slate-50/60 hover:border-amber-300 hover:bg-amber-50/40 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-amber-500/40 dark:hover:bg-amber-500/5',
+                  )}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm ring-1 ring-slate-200">
+                    <UploadCloud className="h-6 w-6" />
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-slate-700 dark:text-slate-200">Drag and drop your image here</p>
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">PNG, JPG up to 5MB</p>
+                  <span className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                    Browse files
+                  </span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </>
+            ) : (
+              <div className="relative overflow-hidden rounded-xl border border-slate-200">
+                <img src={previewUrl || placeholderPreview} alt="Selected preview" className="h-48 w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelected(false)
+                    setFile(null)
+                    setPreviewUrl('')
+                  }}
                   className="absolute top-2 right-2 rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm backdrop-blur hover:bg-white transition-colors"
                 >
                   Remove
                 </button>
                 <div className="flex items-center gap-2 px-4 py-2.5">
                   <ImageIcon className="h-4 w-4 text-slate-400" />
-                  <span className="truncate text-xs text-slate-500">construction-site-photo.jpg</span>
+                  <span className="truncate text-xs text-slate-500">{file?.name || 'Selected image'}</span>
                   <CheckCircle2 className="ml-auto h-4 w-4 text-emerald-500" />
                 </div>
               </div>
@@ -114,7 +154,6 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
           </div>
         )}
 
-        {/* Fields */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Title <span className="font-normal text-slate-400 dark:text-slate-500">(optional)</span></label>
           <input
@@ -151,7 +190,6 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
           </div>
         </div>
 
-        {/* Active toggle */}
         <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <div>
             <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Active</p>
@@ -160,7 +198,6 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
           <Toggle checked={form.active} onChange={(v) => set('active', v)} />
         </div>
 
-        {/* Upload progress */}
         <AnimatePresence>
           {uploading && (
             <motion.div
@@ -184,10 +221,9 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
           )}
         </AnimatePresence>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-3 pt-1">
           <Button variant="ghost" type="button" onClick={handleClose}>Cancel</Button>
-          <Button type="submit" loading={uploading} disabled={mode === 'create' && !selected}>
+          <Button type="submit" loading={uploading} disabled={mode === 'create' && !file}>
             {uploading ? 'Uploading...' : mode === 'create' ? 'Upload Image' : 'Save Changes'}
           </Button>
         </div>

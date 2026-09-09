@@ -11,7 +11,7 @@ import Modal from './Modal'
 import EmptyState from './EmptyState'
 import { Skeleton } from './Skeleton'
 import { useToast } from './Toast'
-import { contacts as initialContacts, statusConfig, countByStatus, relativeTime } from '../../data/contactData'
+import { contacts as initialContacts, statusConfig, countByStatus, relativeTime, fetchContacts, fetchContact } from '../../data/contactData'
 import { cn } from '../../lib/utils'
 
 const filters = ['All', 'New', 'Read', 'Replied']
@@ -29,11 +29,19 @@ export default function ContactInbox({ siteName }) {
   const toast = useToast()
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    let mounted = true
+    async function load() {
+      setLoading(true)
+      const data = await fetchContacts()
+      if (!mounted) return
+      setContacts(data)
+      setSelectedId(data[0]?.id ?? null)
       setLoading(false)
-      setSelectedId(initialContacts[0]?.id ?? null)
-    }, 900)
-    return () => clearTimeout(t)
+    }
+    load()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const counts = useMemo(() => countByStatus(contacts), [contacts])
@@ -57,12 +65,22 @@ export default function ContactInbox({ siteName }) {
     if (!selected && filtered.length > 0) setSelectedId(filtered[0].id)
   }, [loading, selected, filtered])
 
-  const openMessage = (id) => {
+  const openMessage = async (id) => {
     setSelectedId(id)
     setMobileView('detail')
-    setContacts((prev) =>
-      prev.map((m) => (m.id === id && m.status === 'new' ? { ...m, status: 'read' } : m)),
-    )
+
+    const fetched = await fetchContact(id)
+    if (fetched) {
+      setContacts((prev) => {
+        const exists = prev.some((m) => m.id === fetched.id)
+        if (exists) return prev.map((m) => (m.id === fetched.id ? { ...m, ...fetched } : m))
+        return [fetched, ...prev]
+      })
+      return
+    }
+
+    // fallback: mark as read locally if fetch failed
+    setContacts((prev) => prev.map((m) => (m.id === id && m.status === 'new' ? { ...m, status: 'read' } : m)))
   }
 
   const changeStatus = (newStatus) => {
