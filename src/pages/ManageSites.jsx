@@ -1,85 +1,106 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
-  Search, MoreVertical, Pencil, Trash2, Power, PowerOff,
-  Plus, Building2, Mail, CalendarDays, AlertTriangle, Settings2,
-} from 'lucide-react'
-import AppShell from '../components/layout/AppShell'
-import { Card } from '../components/ui/Card'
-import Badge from '../components/ui/Badge'
-import Button from '../components/ui/Button'
-import Modal from '../components/ui/Modal'
-import DropdownMenu from '../components/ui/DropdownMenu'
-import EmptyState from '../components/ui/EmptyState'
-import SiteFormModal from '../components/admin/SiteFormModal'
-import { useToast } from '../components/ui/Toast'
+  Search,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Power,
+  PowerOff,
+  Plus,
+  Building2,
+  Mail,
+  CalendarDays,
+  AlertTriangle,
+  Settings2,
+} from "lucide-react";
+import AppShell from "../components/layout/AppShell";
+import { Card } from "../components/ui/Card";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import Modal from "../components/ui/Modal";
+import DropdownMenu from "../components/ui/DropdownMenu";
+import EmptyState from "../components/ui/EmptyState";
+import SiteFormModal from "../components/admin/SiteFormModal";
+import { useToast } from "../components/ui/Toast";
 import {
   fetchAdminUsers,
   createAdminUser,
   updateAdminUser,
   deleteAdminUser,
-} from '../data/adminUsers'
-import { cn } from '../lib/utils'
+} from "../data/adminUsers";
 
 export default function ManageSites() {
-  const navigate = useNavigate()
-  const [sites, setSites] = useState([])
-  const [query, setQuery] = useState('')
-  const [formModal, setFormModal] = useState({ open: false, mode: 'create', initial: null })
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const navigate = useNavigate();
+  const [sites, setSites] = useState([]);
+  const [query, setQuery] = useState("");
+  const [formModal, setFormModal] = useState({
+    open: false,
+    mode: "create",
+    initial: null,
+  });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const toast = useToast()
+  const toast = useToast();
 
   const loadSites = async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
-      const data = await fetchAdminUsers()
-      setSites(data)
+      const data = await fetchAdminUsers();
+      setSites(data);
     } catch (err) {
-      setError(err?.message || 'Unable to load sites.')
+      setError(err?.message || "Unable to load sites.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    loadSites()
-  }, [])
+    loadSites();
+  }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return sites
+    const q = query.trim().toLowerCase();
+    if (!q) return sites;
     return sites.filter(
-      (s) => s.siteName.toLowerCase().includes(q) || s.email.toLowerCase().includes(q),
-    )
-  }, [sites, query])
+      (s) =>
+        s.siteName.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q),
+    );
+  }, [sites, query]);
 
-  const openCreate = () => setFormModal({ open: true, mode: 'create', initial: null })
-  const openEdit = (site) => setFormModal({ open: true, mode: 'edit', initial: site })
+  const openCreate = () =>
+    setFormModal({ open: true, mode: "create", initial: null });
+  const openEdit = (site) =>
+    setFormModal({ open: true, mode: "edit", initial: site });
 
   const handleSubmit = async (formData) => {
     try {
-      if (formModal.mode === 'create') {
-        await createAdminUser(formData)
+      if (formModal.mode === "create") {
+        await createAdminUser(formData);
         // Reload from API to ensure we display the returned/normalized object correctly
-        await loadSites()
-        toast.success(`Site "${formData.siteName}" was created.`, { title: 'Site created successfully' })
+        await loadSites();
+        toast.success(`Site "${formData.siteName}" was created.`, {
+          title: "Site created successfully",
+        });
       } else {
-        await updateAdminUser(formModal.initial.id, formData)
+        await updateAdminUser(formModal.initial.id, formData);
         // Reload to reflect server-side canonical data
-        await loadSites()
-        toast.success(`Site "${formData.siteName}" was updated.`, { title: 'Changes saved' })
+        await loadSites();
+        toast.success(`Site "${formData.siteName}" was updated.`, {
+          title: "Changes saved",
+        });
       }
-      setFormModal({ open: false, mode: 'create', initial: null })
+      setFormModal({ open: false, mode: "create", initial: null });
     } catch (err) {
-      toast.error(err?.message || 'Unable to save site.')
+      toast.error(err?.message || "Unable to save site.");
     }
-  }
+  };
 
   const toggleStatus = async (site) => {
     try {
@@ -87,41 +108,52 @@ export default function ManageSites() {
         contactName: site.contactName,
         email: site.email,
         active: !site.active,
-      })
-      setSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
-      toast.info(`"${site.siteName}" is now ${updated.active ? 'active' : 'inactive'}.`)
+      });
+      setSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      toast.info(
+        `"${site.siteName}" is now ${updated.active ? "active" : "inactive"}.`,
+      );
     } catch (err) {
-      toast.error(err?.message || 'Unable to update status.')
+      toast.error(err?.message || "Unable to update status.");
     }
-  }
+  };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget) return;
 
     try {
-      const deleted = await deleteAdminUser(deleteTarget.id)
+      const deleted = await deleteAdminUser(deleteTarget.id);
       if (!deleted) {
-        throw new Error('Delete failed.')
+        throw new Error("Delete failed.");
       }
-      setSites((prev) => prev.filter((s) => s.id !== deleteTarget.id))
-      toast.success(`"${deleteTarget.siteName}" was permanently removed.`)
+      setSites((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+      toast.success(`"${deleteTarget.siteName}" was permanently removed.`);
     } catch (err) {
-      toast.error(err?.message || 'Unable to delete site.')
+      toast.error(err?.message || "Unable to delete site.");
     } finally {
-      setDeleteTarget(null)
+      setDeleteTarget(null);
     }
-  }
+  };
 
   const rowActions = (site) => [
-    { label: 'Manage', icon: Settings2, onClick: () => navigate(`/admin/users/${site.id}/manage`) },
-    { label: 'Edit', icon: Pencil, onClick: () => openEdit(site) },
     {
-      label: site.status === 'active' ? 'Deactivate' : 'Activate',
-      icon: site.status === 'active' ? PowerOff : Power,
+      label: "Manage",
+      icon: Settings2,
+      onClick: () => navigate(`/admin/users/${site.id}/manage`),
+    },
+    { label: "Edit", icon: Pencil, onClick: () => openEdit(site) },
+    {
+      label: site.status === "active" ? "Deactivate" : "Activate",
+      icon: site.status === "active" ? PowerOff : Power,
       onClick: () => toggleStatus(site),
     },
-    { label: 'Delete', icon: Trash2, onClick: () => setDeleteTarget(site), danger: true },
-  ]
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => setDeleteTarget(site),
+      danger: true,
+    },
+  ];
 
   return (
     <AppShell pageTitle="Manage Sites">
@@ -134,9 +166,12 @@ export default function ManageSites() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Manage Sites</h2>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Manage Sites
+            </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {sites.length} sub-admin accounts · {sites.filter((s) => s.status === 'active').length} active
+              {sites.length} sub-admin accounts ·{" "}
+              {sites.filter((s) => s.status === "active").length} active
             </p>
           </div>
           <Button onClick={openCreate}>
@@ -158,19 +193,43 @@ export default function ManageSites() {
 
         {loading ? (
           <Card className="p-8 text-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Loading sites...</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Loading sites...
+            </p>
           </Card>
         ) : error ? (
           <Card className="p-8 text-center">
-            <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
-            <Button variant="secondary" className="mt-4" onClick={loadSites}>Retry</Button>
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">
+              {error}
+            </p>
+            <Button variant="secondary" className="mt-4" onClick={loadSites}>
+              Retry
+            </Button>
           </Card>
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Building2}
             title="No sites found"
-            description={query ? "No sites match your search. Try a different term." : "Get started by creating your first site."}
-            action={query ? <Button variant="secondary" size="sm" onClick={() => setQuery('')}>Clear search</Button> : <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" /> Create New Site</Button>}
+            description={
+              query
+                ? "No sites match your search. Try a different term."
+                : "Get started by creating your first site."
+            }
+            action={
+              query ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setQuery("")}
+                >
+                  Clear search
+                </Button>
+              ) : (
+                <Button size="sm" onClick={openCreate}>
+                  <Plus className="h-4 w-4" /> Create New Site
+                </Button>
+              )
+            }
           />
         ) : (
           <>
@@ -184,26 +243,48 @@ export default function ManageSites() {
                     <th className="px-6 py-3 font-medium">Email</th>
                     <th className="px-6 py-3 font-medium">Status</th>
                     <th className="px-6 py-3 font-medium">Created</th>
-                    <th className="px-6 py-3 text-right font-medium">Actions</th>
+                    <th className="px-6 py-3 text-right font-medium">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((site) => (
-                    <tr key={site.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-700/30">
+                    <tr
+                      key={site.id}
+                      className="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-700/30"
+                    >
                       <td className="px-6 py-4">
-                        <div className="font-medium text-slate-900 dark:text-white">{site.siteName}</div>
+                        <div className="font-medium text-slate-900 dark:text-white">
+                          {site.siteName}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{site.contactName}</td>
-                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{site.email}</td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                        {site.contactName}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                        {site.email}
+                      </td>
                       <td className="px-6 py-4">
-                        <Badge tone={site.status === 'active' ? 'green' : 'neutral'} dot>
-                          {site.status === 'active' ? 'Active' : 'Inactive'}
+                        <Badge
+                          tone={site.status === "active" ? "green" : "neutral"}
+                          dot
+                        >
+                          {site.status === "active" ? "Active" : "Inactive"}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{formatDate(site.createdAt)}</td>
+                      <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                        {formatDate(site.createdAt)}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => navigate(`/admin/users/${site.id}/manage`)}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              navigate(`/admin/users/${site.id}/manage`)
+                            }
+                          >
                             <Settings2 className="h-4 w-4" /> Manage
                           </Button>
                           <DropdownMenu items={rowActions(site)}>
@@ -223,8 +304,12 @@ export default function ManageSites() {
                 <Card key={site.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-slate-900">{site.siteName}</p>
-                      <p className="truncate text-sm text-slate-600">{site.contactName}</p>
+                      <p className="truncate font-medium text-slate-900">
+                        {site.siteName}
+                      </p>
+                      <p className="truncate text-sm text-slate-600">
+                        {site.contactName}
+                      </p>
                     </div>
                     <DropdownMenu items={rowActions(site)}>
                       <MoreVertical className="h-4 w-4" />
@@ -232,17 +317,26 @@ export default function ManageSites() {
                   </div>
                   <div className="mt-3 space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-slate-500">
-                      <Mail className="h-3.5 w-3.5" /> <span className="truncate">{site.email}</span>
+                      <Mail className="h-3.5 w-3.5" />{" "}
+                      <span className="truncate">{site.email}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-500">
-                      <CalendarDays className="h-3.5 w-3.5" /> {formatDate(site.createdAt)}
+                      <CalendarDays className="h-3.5 w-3.5" />{" "}
+                      {formatDate(site.createdAt)}
                     </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
-                    <Badge tone={site.status === 'active' ? 'green' : 'neutral'} dot>
-                      {site.status === 'active' ? 'Active' : 'Inactive'}
+                    <Badge
+                      tone={site.status === "active" ? "green" : "neutral"}
+                      dot
+                    >
+                      {site.status === "active" ? "Active" : "Inactive"}
                     </Badge>
-                    <Button variant="secondary" size="sm" onClick={() => navigate(`/admin/users/${site.id}/manage`)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/admin/users/${site.id}/manage`)}
+                    >
                       <Settings2 className="h-4 w-4" /> Manage
                     </Button>
                   </div>
@@ -258,7 +352,9 @@ export default function ManageSites() {
         open={formModal.open}
         mode={formModal.mode}
         initial={formModal.initial}
-        onClose={() => setFormModal({ open: false, mode: 'create', initial: null })}
+        onClose={() =>
+          setFormModal({ open: false, mode: "create", initial: null })
+        }
         onSubmit={handleSubmit}
       />
 
@@ -271,7 +367,9 @@ export default function ManageSites() {
         size="sm"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
             <Button variant="danger" onClick={confirmDelete}>
               <Trash2 className="h-4 w-4" /> Delete permanently
             </Button>
@@ -281,16 +379,22 @@ export default function ManageSites() {
         <div className="flex items-start gap-3 rounded-xl bg-red-50 p-4 ring-1 ring-inset ring-red-100">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
           <p className="text-sm text-red-800">
-            You're about to delete <span className="font-semibold">{deleteTarget?.siteName}</span> along with
-            its images, contact messages, and sub-admin account. This action cannot be undone.
+            You are about to delete
+            <span className="font-semibold">{deleteTarget?.siteName}</span>{" "}
+            along with its images, contact messages, and sub-admin account. This
+            action cannot be undone.
           </p>
         </div>
       </Modal>
     </AppShell>
-  )
+  );
 }
 
 function formatDate(iso) {
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

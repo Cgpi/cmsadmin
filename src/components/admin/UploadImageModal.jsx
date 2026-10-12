@@ -1,21 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
+import PropTypes from 'prop-types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { UploadCloud, ImageIcon, CheckCircle2 } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import { cn } from '../../lib/utils'
-import { locations, placeholderPreview } from '../../data/imageData'
+import { placeholderPreview } from '../../data/imageData'
 
-export default function UploadImageModal({ open, onClose, mode = 'create', initial, onSubmit }) {
-  const [form, setForm] = useState(() => ({
+function getInitialForm(initial, locations) {
+  const initialLocationId = initial?.locationId ?? initial?.raw?.location_id
+  const matchedLocation = locations.find((location) => (
+    initialLocationId != null && String(location.id) === String(initialLocationId)
+  )) || locations.find((location) => (
+    location.slug === initial?.location || location.name === initial?.location
+  ))
+  return {
     title: '',
-    location: 'Gallery',
-    order: 1,
+    order: 0,
     active: true,
     ...initial,
-  }))
+    location: matchedLocation ? String(matchedLocation.id) : String(locations[0]?.id ?? ''),
+  }
+}
+
+export default function UploadImageModal({ open, onClose, mode = 'create', initial, locations = [], onSubmit }) {
+  const [form, setForm] = useState(() => getInitialForm(initial, locations))
   const [selected, setSelected] = useState(false)
   const [file, setFile] = useState(null)
+  const [fileError, setFileError] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -24,15 +36,21 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
   const submittingRef = useRef(false)
 
   useEffect(() => {
+    if (!open) return
+    setForm(getInitialForm(initial, locations))
+  }, [open, initial, locations])
+
+  useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }, [previewUrl])
 
   const reset = () => {
-    setForm({ title: '', location: 'Gallery', order: 1, active: true, ...initial })
+    setForm(getInitialForm(initial, locations))
     setSelected(false)
     setFile(null)
+    setFileError('')
     setPreviewUrl('')
     setUploading(false)
     setProgress(0)
@@ -53,38 +71,46 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
   const handleFileChange = (event) => {
     const picked = event.target.files?.[0]
     if (!picked) return
+    if (!picked.type.startsWith('image/')) {
+      setFileError('Choose an image file.')
+      event.target.value = ''
+      return
+    }
+    if (picked.size > 5 * 1024 * 1024) {
+      setFileError('Choose an image smaller than 5 MB.')
+      event.target.value = ''
+      return
+    }
+    setFileError('')
     setSelected(true)
     setFile(picked)
     setPreviewUrl(URL.createObjectURL(picked))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!selected && mode === 'create') return
     if (uploading || submittingRef.current) return
 
     submittingRef.current = true
     setUploading(true)
-    setProgress(0)
-
-    const tick = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          clearInterval(tick)
-          setUploading(false)
-          onSubmit?.({
-            ...form,
-            file,
-            url: previewUrl || placeholderPreview,
-            is_active: form.active,
-            sort_order: form.order,
-          })
-          reset()
-          return 100
-        }
-        return p + 10
+    setProgress(10)
+    try {
+      const saved = await onSubmit?.({
+        ...form,
+        file,
+        url: previewUrl || placeholderPreview,
+        is_active: form.active,
+        sort_order: form.order,
       })
-    }, 120)
+      if (saved) {
+        setProgress(100)
+        reset()
+      }
+    } finally {
+      setUploading(false)
+      submittingRef.current = false
+    }
   }
 
   return (
@@ -129,6 +155,7 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
                   className="hidden"
                   onChange={handleFileChange}
                 />
+                {fileError && <p role="alert" className="mt-2 text-sm text-red-600">{fileError}</p>}
               </>
             ) : (
               <div className="relative overflow-hidden rounded-xl border border-slate-200">
@@ -169,12 +196,13 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Location</label>
             <select
+              required
               value={form.location}
               onChange={(e) => set('location', e.target.value)}
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 transition-colors focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             >
               {locations.map((loc) => (
-                <option key={loc} value={loc}>{loc}</option>
+                <option key={loc.id} value={String(loc.id)}>{loc.name}</option>
               ))}
             </select>
           </div>
@@ -182,7 +210,7 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Sort Order</label>
             <input
               type="number"
-              min={1}
+              min={0}
               value={form.order}
               onChange={(e) => set('order', Number(e.target.value))}
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 transition-colors focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
@@ -223,13 +251,31 @@ export default function UploadImageModal({ open, onClose, mode = 'create', initi
 
         <div className="flex items-center justify-end gap-3 pt-1">
           <Button variant="ghost" type="button" onClick={handleClose}>Cancel</Button>
-          <Button type="submit" loading={uploading} disabled={mode === 'create' && !file}>
+          <Button type="submit" loading={uploading} disabled={(mode === 'create' && !file) || locations.length === 0}>
             {uploading ? 'Uploading...' : mode === 'create' ? 'Upload Image' : 'Save Changes'}
           </Button>
         </div>
       </form>
     </Modal>
   )
+}
+
+UploadImageModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func,
+  mode: PropTypes.oneOf(['create', 'edit']),
+  initial: PropTypes.object,
+  locations: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    name: PropTypes.string,
+    slug: PropTypes.string,
+  })),
+  onSubmit: PropTypes.func,
+}
+
+Toggle.propTypes = {
+  checked: PropTypes.bool.isRequired,
+  onChange: PropTypes.func.isRequired,
 }
 
 function Toggle({ checked, onChange }) {

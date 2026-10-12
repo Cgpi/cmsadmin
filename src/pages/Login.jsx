@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Mail, Lock, HardHat, ArrowRight } from 'lucide-react'
@@ -12,23 +12,29 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const submittingRef = useRef(false)
   const navigate = useNavigate()
   const toast = useToast()
   const { login } = useAuth()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (submittingRef.current || !email.trim() || !password) return
+    submittingRef.current = true
     setLoading(true)
 
-    const result = await login({ email, password })
-    setLoading(false)
-
-    if (result.success) {
-      toast.success(`Welcome back, ${result.user.name}.`, { title: 'Signed in successfully' })
-      navigate(result.user.role === 'super_admin' ? '/admin/dashboard' : '/dashboard')
-    } else {
-      toast.error(result.error || 'Invalid email or password.')
-      setPassword('')
+    try {
+      const result = await login({ email, password })
+      if (result.success) {
+        toast.success(`Welcome back, ${result.user.name}.`, { title: 'Signed in successfully' })
+        navigate(result.user.role === 'super_admin' ? '/admin/dashboard' : '/dashboard')
+      } else {
+        toast.error(result.error || 'Invalid email or password.')
+        setPassword('')
+      }
+    } finally {
+      submittingRef.current = false
+      setLoading(false)
     }
   }
 

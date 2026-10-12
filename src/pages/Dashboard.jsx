@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Images, CheckCircle2, MessageSquare, UploadCloud, ArrowRight } from 'lucide-react'
@@ -8,15 +8,8 @@ import Button from '../components/ui/Button'
 import UploadImageModal from '../components/admin/UploadImageModal'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
-import { images, computeImageStats } from '../data/imageData'
-
-const stats = computeImageStats(images)
-
-const statCards = [
-  { label: 'Total Images', value: stats.totalImages, icon: Images, tone: 'bg-amber-50 text-amber-700' },
-  { label: 'Active Images', value: stats.activeImages, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
-  { label: 'New Messages', value: stats.newMessages, icon: MessageSquare, tone: 'bg-sky-50 text-sky-700' },
-]
+import { computeImageStats, fetchImages, createImage } from '../data/imageData'
+import { fetchLocations } from '../data/locationData'
 
 const container = {
   hidden: {},
@@ -29,15 +22,58 @@ const item = {
 
 export default function Dashboard() {
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [locations, setLocations] = useState([])
+  const [stats, setStats] = useState(() => computeImageStats([]))
+  const [apiError, setApiError] = useState('')
   const navigate = useNavigate()
   const toast = useToast()
   const { user } = useAuth()
   const firstName = (user?.name || 'Rohan').split(' ')[0]
   const siteName = user?.site_name || 'vp-construction-pune'
 
-  const handleUpload = (formData) => {
-    setUploadOpen(false)
-    toast.success('Your image was uploaded and added to the gallery.', { title: 'Image uploaded' })
+  useEffect(() => {
+    let mounted = true
+    fetchLocations()
+      .then((result) => {
+        if (mounted) setLocations(result)
+      })
+      .catch((error) => {
+        if (mounted) setApiError(error.message || 'Unable to load active locations.')
+      })
+    fetchImages()
+      .then((result) => {
+        if (mounted) setStats(computeImageStats(result))
+      })
+      .catch((error) => {
+        if (mounted) setApiError(error.message || 'Unable to load dashboard images.')
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const statCards = [
+    { label: 'Total Images', value: stats.totalImages, icon: Images, tone: 'bg-amber-50 text-amber-700' },
+    { label: 'Active Images', value: stats.activeImages, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'New Messages', value: stats.newMessages, icon: MessageSquare, tone: 'bg-sky-50 text-sky-700' },
+  ]
+
+  const handleUpload = async (formData) => {
+    try {
+      const saved = await createImage(formData, locations)
+      if (!saved) throw new Error('The image upload returned no image details.')
+      setStats((current) => ({
+        ...current,
+        totalImages: current.totalImages + 1,
+        activeImages: current.activeImages + (saved.active ? 1 : 0),
+      }))
+      setUploadOpen(false)
+      toast.success('Your image was uploaded and added to the gallery.', { title: 'Image uploaded' })
+      return true
+    } catch (error) {
+      toast.error(error.message || 'Unable to upload image.')
+      return false
+    }
   }
 
   return (
@@ -48,6 +84,11 @@ export default function Dashboard() {
         animate="show"
         className="space-y-6"
       >
+        {apiError && (
+          <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            {apiError}
+          </p>
+        )}
         {/* Welcome */}
         <motion.div variants={item}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -111,7 +152,12 @@ export default function Dashboard() {
         </motion.div>
       </motion.div>
 
-      <UploadImageModal open={uploadOpen} onClose={() => setUploadOpen(false)} onSubmit={handleUpload} />
+      <UploadImageModal
+        open={uploadOpen}
+        locations={locations}
+        onClose={() => setUploadOpen(false)}
+        onSubmit={handleUpload}
+      />
     </AppShell>
   )
 }

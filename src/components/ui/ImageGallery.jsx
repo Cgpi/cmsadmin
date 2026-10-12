@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import PropTypes from 'prop-types'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Pencil, Trash2, Power, PowerOff, GripVertical, ImageIcon, AlertTriangle,
@@ -9,18 +10,25 @@ import Button from './Button'
 import Modal from './Modal'
 import EmptyState from './EmptyState'
 import UploadImageModal from '../admin/UploadImageModal'
+import LocationFormModal from '../admin/LocationFormModal'
 import { useToast } from './Toast'
-import { locations, fetchImages, createImage, updateImage, deleteImage, countByLocation } from '../../data/imageData'
+import { fetchImages, createImage, updateImage, deleteImage } from '../../data/imageData'
+import { createLocation, deleteLocation, fetchLocationById, fetchLocations, updateLocation } from '../../data/locationData'
 import { cn } from '../../lib/utils'
 
-const tabs = ['All', ...locations]
-
-export default function ImageGallery({ siteName }) {
+export default function ImageGallery() {
   const [images, setImages] = useState([])
+  const [locations, setLocations] = useState([])
+  const [locationError, setLocationError] = useState('')
+  const [imageError, setImageError] = useState('')
+  const [loadingLocationId, setLoadingLocationId] = useState(null)
   const [activeTab, setActiveTab] = useState('All')
   const [activeOnly, setActiveOnly] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [uploadModal, setUploadModal] = useState({ open: false, mode: 'create', initial: null })
+  const [locationModal, setLocationModal] = useState({ open: false, mode: 'create', initial: null })
+  const [locationDeleteTarget, setLocationDeleteTarget] = useState(null)
+  const [deletingLocation, setDeletingLocation] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [loading, setLoading] = useState(true)
   const toast = useToast()
@@ -28,28 +36,68 @@ export default function ImageGallery({ siteName }) {
 
   useEffect(() => {
     let mounted = true
+    fetchLocations()
+      .then((data) => {
+        if (mounted) {
+          setLocations(data)
+          setLocationError('')
+        }
+      })
+      .catch((error) => {
+        if (mounted) setLocationError(error.message || 'Unable to load active locations.')
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
     async function load() {
       setLoading(true)
-      const data = await fetchImages({ location: activeTab, activeOnly })
-      if (!mounted) return
-      setImages(data)
-      setLoading(false)
+      setImageError('')
+      try {
+        const data = await fetchImages({
+          activeOnly,
+          locationOptions: locations,
+        })
+        if (mounted) setImages(data)
+      } catch (error) {
+        if (mounted) {
+          setImages([])
+          setImageError(error.message || 'Unable to load images.')
+        }
+      } finally {
+        if (mounted) setLoading(false)
+      }
     }
     load()
     return () => {
       mounted = false
     }
-  }, [activeTab, activeOnly])
+  }, [activeOnly, locations])
 
-  const counts = useMemo(() => countByLocation(images), [images])
+  const counts = useMemo(() => images.reduce((totals, image) => {
+    if (image.locationId != null) {
+      const id = String(image.locationId)
+      totals[id] = (totals[id] || 0) + 1
+    }
+    return totals
+  }, {}), [images])
+  const selectedLocation = locations.find((location) => location.name === activeTab)
 
   const filtered = useMemo(() => {
     return images.filter((img) => {
-      if (activeTab !== 'All' && img.location !== activeTab) return false
+      if (activeTab !== 'All') {
+        const matchedById = selectedLocation?.id != null
+          && img.locationId != null
+          && String(img.locationId) === String(selectedLocation.id)
+        if (!matchedById && img.location !== activeTab) return false
+      }
       if (activeOnly && !img.active) return false
       return true
     }).sort((a, b) => a.order - b.order)
-  }, [images, activeTab, activeOnly])
+  }, [images, activeTab, activeOnly, selectedLocation])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -64,29 +112,86 @@ export default function ImageGallery({ siteName }) {
   const openCreate = () => setUploadModal({ open: true, mode: 'create', initial: null })
   const openEdit = (img) => setUploadModal({ open: true, mode: 'edit', initial: img })
 
+  const openEditLocation = async (location) => {
+    if (loadingLocationId != null) return
+    setLoadingLocationId(location.id)
+    try {
+      const details = await fetchLocationById(location.id)
+      setLocationModal({ open: true, mode: 'edit', initial: details })
+    } catch (error) {
+      toast.error(error.message || 'Unable to load location details.')
+    } finally {
+      setLoadingLocationId(null)
+    }
+  }
+
+  const handleSaveLocation = async (form) => {
+    try {
+      const editing = locationModal.mode === 'edit'
+      const saved = editing
+        ? await updateLocation(locationModal.initial.id, form)
+        : await createLocation(form)
+      if (!saved) throw new Error('The location was saved but no details were returned.')
+      setLocations(await fetchLocations())
+      if (activeTab === locationModal.initial?.name || !editing) setActiveTab(saved.name)
+      toast.success(`"${saved.name}" was ${editing ? 'updated' : 'created'}.`, {
+        title: editing ? 'Location updated' : 'Location created',
+      })
+    } catch (error) {
+      toast.error(error.message || 'Unable to save location.')
+      return false
+    }
+  }
+
+  const confirmDeleteLocation = async () => {
+    if (!locationDeleteTarget || deletingLocation) return
+    setDeletingLocation(true)
+    try {
+      await deleteLocation(locationDeleteTarget.id)
+      setLocations((current) => current.filter((location) => String(location.id) !== String(locationDeleteTarget.id)))
+      if (activeTab === locationDeleteTarget.name) setActiveTab('All')
+      toast.success(`"${locationDeleteTarget.name}" was deleted.`, { title: 'Location deleted' })
+      setLocationDeleteTarget(null)
+    } catch (error) {
+      toast.error(error.message || 'Unable to delete location.')
+    } finally {
+      setDeletingLocation(false)
+    }
+  }
+
   const handleSubmit = async (formData) => {
     if (submitRef.current) return
     submitRef.current = true
     try {
       if (uploadModal.mode === 'create') {
-        const response = await createImage(formData)
+        const response = await createImage(formData, locations)
         if (!response) throw new Error('Upload failed')
-        setImages((prev) => {
-          if (prev.some((item) => item.id === response.id)) {
-            return prev.map((item) => (item.id === response.id ? response : item))
-          }
-          return [response, ...prev]
-        })
+        setImages((current) => [response, ...current.filter((item) => item.id !== response.id)])
+        try {
+          const refreshed = await fetchImages({ locationOptions: locations })
+          setImages(refreshed.map((item) => String(item.id) === String(response.id)
+            ? {
+              ...item,
+              locationId: item.locationId == null || String(item.locationId) === '0' ? response.locationId : item.locationId,
+              location: response.location,
+            }
+            : item))
+          setImageError('')
+        } catch (refreshError) {
+          setImageError(refreshError.message || 'The image uploaded, but the gallery could not refresh.')
+        }
         toast.success(`Image added to ${response.location}.`, { title: 'Image uploaded' })
       } else {
-        const response = await updateImage(uploadModal.initial.id, formData)
+        const response = await updateImage(uploadModal.initial.id, formData, locations)
         if (!response) throw new Error('Update failed')
         setImages((prev) => prev.map((i) => (i.id === response.id ? response : i)))
         toast.success('Image details updated.', { title: 'Changes saved' })
       }
       setUploadModal({ open: false, mode: 'create', initial: null })
+      return true
     } catch (error) {
       toast.error(error.message || 'Unable to save image. Please try again.')
+      return false
     } finally {
       submitRef.current = false
     }
@@ -118,46 +223,95 @@ export default function ImageGallery({ siteName }) {
     }
   }
 
-  const tabCount = (tab) => (tab === 'All' ? images.length : counts[tab] || 0)
+  const tabCount = (tab) => {
+    if (tab === 'All') return images.length
+    const location = locations.find((item) => item.name === tab)
+    return location?.id == null ? 0 : counts[String(location.id)] || 0
+  }
 
   return (
     <div className="space-y-6">
+      {locationError && (
+        <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          {locationError}
+        </p>
+      )}
+      {imageError && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          {imageError}
+        </p>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Images</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{images.length} images across {locations.length} locations</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Upload Image
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setLocationModal({ open: true, mode: 'create', initial: null })}>
+            <Plus className="h-4 w-4" /> Add Location
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Upload Image
+          </Button>
+        </div>
       </div>
 
       {/* Filter tabs + active toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200',
-                activeTab === tab
-                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
-                  : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700',
-              )}
-            >
-              {tab}
-              <span
+          {['All', ...locations.map((location) => location.name)].map((tab) => {
+            const location = locations.find((item) => item.name === tab)
+            const active = activeTab === tab
+            return (
+              <div
+                key={tab}
                 className={cn(
-                  'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-xs font-semibold',
-                  activeTab === tab ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500',
+                  'inline-flex items-center overflow-hidden rounded-xl transition-all duration-200',
+                  active
+                    ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
+                    : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
                 )}
               >
-                {tabCount(tab)}
-              </span>
-            </button>
-          ))}
+                <button
+                  onClick={() => setActiveTab(tab)}
+                  className="inline-flex items-center gap-2 py-2 pl-3.5 pr-2 text-sm font-medium hover:opacity-80"
+                >
+                  {tab}
+                  <span className={cn(
+                    'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-xs font-semibold',
+                    active ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500',
+                  )}>
+                    {tabCount(tab)}
+                  </span>
+                </button>
+                {location?.id && (
+                  <>
+                    <button
+                      type="button"
+                      title={`Edit ${location.name}`}
+                      aria-label={`Edit ${location.name}`}
+                      disabled={loadingLocationId != null || deletingLocation}
+                      onClick={() => openEditLocation(location)}
+                      className="grid h-9 w-9 place-items-center opacity-70 transition-opacity hover:opacity-100 disabled:cursor-wait"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title={`Delete ${location.name}`}
+                      aria-label={`Delete ${location.name}`}
+                      disabled={loadingLocationId != null || deletingLocation}
+                      onClick={() => setLocationDeleteTarget(location)}
+                      className="grid h-9 w-9 place-items-center text-slate-400 opacity-70 transition-colors hover:text-red-600 hover:opacity-100 disabled:cursor-wait"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-200 transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700">
@@ -246,8 +400,35 @@ export default function ImageGallery({ siteName }) {
         open={uploadModal.open}
         mode={uploadModal.mode}
         initial={uploadModal.initial}
+        locations={locations}
         onClose={() => setUploadModal({ open: false, mode: 'create', initial: null })}
         onSubmit={handleSubmit}
+      />
+
+      <LocationFormModal
+        open={locationModal.open}
+        mode={locationModal.mode}
+        initial={locationModal.initial}
+        onClose={() => setLocationModal({ open: false, mode: 'create', initial: null })}
+        onSubmit={handleSaveLocation}
+      />
+
+      <Modal
+        open={!!locationDeleteTarget}
+        onClose={() => !deletingLocation && setLocationDeleteTarget(null)}
+        title="Delete location"
+        description={`Delete "${locationDeleteTarget?.name || 'this location'}"? This action may be blocked if images are still assigned to it.`}
+        size="sm"
+        footer={(
+          <>
+            <Button variant="ghost" disabled={deletingLocation} onClick={() => setLocationDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" loading={deletingLocation} onClick={confirmDeleteLocation}>
+              <Trash2 className="h-4 w-4" /> Delete location
+            </Button>
+          </>
+        )}
       />
 
       {/* Delete confirmation */}
@@ -269,13 +450,26 @@ export default function ImageGallery({ siteName }) {
         <div className="flex items-start gap-3 rounded-xl bg-red-50 p-4 ring-1 ring-inset ring-red-100">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
           <p className="text-sm text-red-800">
-            You're about to delete <span className="font-semibold">{deleteTarget?.title || 'this image'}</span>.
+            You are about to delete <span className="font-semibold">{deleteTarget?.title || 'this image'}</span>.
             This action cannot be undone.
           </p>
         </div>
       </Modal>
     </div>
   )
+}
+
+ImageCard.propTypes = {
+  image: PropTypes.shape({
+    url: PropTypes.string.isRequired,
+    title: PropTypes.string,
+    order: PropTypes.number,
+    active: PropTypes.bool,
+    location: PropTypes.string,
+  }).isRequired,
+  onEdit: PropTypes.func.isRequired,
+  onToggle: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
 }
 
 function ImageCard({ image, onEdit, onToggle, onDelete }) {
@@ -287,7 +481,7 @@ function ImageCard({ image, onEdit, onToggle, onDelete }) {
           alt={image.title || 'Site image'}
           loading="lazy"
           decoding="async"
-          fetchpriority={image.order <= 3 ? 'high' : 'low'}
+          fetchPriority={image.order <= 3 ? 'high' : 'low'}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {/* gradient overlay on hover */}
@@ -326,6 +520,13 @@ function ImageCard({ image, onEdit, onToggle, onDelete }) {
   )
 }
 
+ActionBtn.propTypes = {
+  children: PropTypes.node,
+  label: PropTypes.string.isRequired,
+  danger: PropTypes.bool,
+  onClick: PropTypes.func.isRequired,
+}
+
 function ActionBtn({ children, label, danger, onClick }) {
   return (
     <button
@@ -341,6 +542,11 @@ function ActionBtn({ children, label, danger, onClick }) {
       {children}
     </button>
   )
+}
+
+Toggle.propTypes = {
+  checked: PropTypes.bool.isRequired,
+  onChange: PropTypes.func.isRequired,
 }
 
 function Toggle({ checked, onChange }) {

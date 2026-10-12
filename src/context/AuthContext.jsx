@@ -6,6 +6,18 @@ const API_BASE_URL = 'https://www.cgpisoftware.com/vpconstruction/api'
 const AUTH_TOKEN_KEY = 'vp_auth_token'
 const AUTH_USER_KEY = 'vp_auth_user'
 
+function getLoginData(payload) {
+  const sources = [payload, payload?.data, payload?.result, payload?.auth].filter(Boolean)
+  const token = sources.map((source) => source.token || source.access_token || source.accessToken).find(Boolean)
+  const user = sources.map((source) => source.user || source.profile).find(Boolean)
+  return { token, user }
+}
+
+function getResponseError(payload, fallback) {
+  const validationErrors = Object.values(payload?.errors || {}).flat().join(' ')
+  return validationErrors || payload?.message || payload?.error || fallback
+}
+
 function readStoredUser() {
   if (typeof window === 'undefined') return null
 
@@ -27,33 +39,43 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => readStoredToken())
 
   const login = useCallback(async ({ email, password }) => {
+    const normalizedEmail = email?.trim().toLowerCase()
+    if (!normalizedEmail || !password) {
+      return { success: false, error: 'Enter your email and password.' }
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
           password,
         }),
       })
 
       const payload = await response.json().catch(() => null)
+      const loginData = getLoginData(payload)
 
-      if (!response.ok || !payload?.token || !payload?.user) {
-        return { success: false, error: payload?.message || 'Invalid email or password' }
+      if (!response.ok) {
+        return { success: false, error: getResponseError(payload, 'Unable to sign in.') }
+      }
+      if (!loginData.token || !loginData.user) {
+        return { success: false, error: getResponseError(payload, 'The login response did not include an access token and user.') }
       }
 
-      const authenticatedUser = payload.user
-      window.localStorage.setItem(AUTH_TOKEN_KEY, payload.token)
+      const authenticatedUser = loginData.user
+      window.localStorage.setItem(AUTH_TOKEN_KEY, loginData.token)
       window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(authenticatedUser))
-      setToken(payload.token)
+      setToken(loginData.token)
       setUser(authenticatedUser)
 
-      return { success: true, user: authenticatedUser, token: payload.token }
+      return { success: true, user: authenticatedUser, token: loginData.token }
     } catch {
-      return { success: false, error: 'Unable to sign in right now. Please try again.' }
+      return { success: false, error: 'Could not reach the sign-in service. Check your connection and try again.' }
     }
   }, [])
 

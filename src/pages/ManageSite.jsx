@@ -138,7 +138,7 @@ export default function ManageSite() {
             </div>
 
             <div>
-              {activeTab === 'images' && <ImageGallery siteName={site.siteName} />}
+              {activeTab === 'images' && <ImageGallery />}
               {activeTab === 'messages' && <ContactInbox siteName={site.siteName} />}
             </div>
           </>
