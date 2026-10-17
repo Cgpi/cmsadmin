@@ -18,7 +18,7 @@ export default function Forbidden() {
         <p className="mt-6 text-5xl font-bold tracking-tight text-slate-900 dark:text-white">403</p>
         <h1 className="mt-3 text-lg font-semibold text-slate-900 dark:text-white">Access denied</h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          You don't have permission to view this page. If you believe this is an error, contact your administrator.
+          You don&apos;t have permission to view this page. If you believe this is an error, contact your administrator.
         </p>
         <Link to="/dashboard" className="mt-6 inline-block">
           <Button variant="secondary">

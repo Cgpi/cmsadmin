@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import AppShell from '../components/layout/AppShell'
 import ContactInbox from '../components/ui/ContactInbox'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 export default function ContactMessages() {
   const { user } = useAuth()

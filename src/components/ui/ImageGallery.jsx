@@ -11,18 +11,19 @@ import Modal from './Modal'
 import EmptyState from './EmptyState'
 import UploadImageModal from '../admin/UploadImageModal'
 import LocationFormModal from '../admin/LocationFormModal'
-import { useToast } from './Toast'
-import { fetchImages, createImage, updateImage, deleteImage } from '../../data/imageData'
+import { useToast } from './useToast'
+import { fetchImages, createImage, updateImage, deleteImage, rememberInactiveImage } from '../../data/imageData'
 import { createLocation, deleteLocation, fetchLocationById, fetchLocations, updateLocation } from '../../data/locationData'
 import { cn } from '../../lib/utils'
 
-export default function ImageGallery() {
+export default function ImageGallery({ userId, allowCreate = true }) {
   const [images, setImages] = useState([])
   const [locations, setLocations] = useState([])
   const [locationError, setLocationError] = useState('')
   const [imageError, setImageError] = useState('')
   const [loadingLocationId, setLoadingLocationId] = useState(null)
   const [activeTab, setActiveTab] = useState('All')
+  const [activeLocationsOnly, setActiveLocationsOnly] = useState(false)
   const [activeOnly, setActiveOnly] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [uploadModal, setUploadModal] = useState({ open: false, mode: 'create', initial: null })
@@ -36,7 +37,7 @@ export default function ImageGallery() {
 
   useEffect(() => {
     let mounted = true
-    fetchLocations()
+    fetchLocations({ userId, activeOnly: false })
       .then((data) => {
         if (mounted) {
           setLocations(data)
@@ -49,7 +50,13 @@ export default function ImageGallery() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [userId])
+
+  useEffect(() => {
+    if (!activeLocationsOnly || activeTab === 'All') return
+    const selected = locations.find((location) => location.name === activeTab)
+    if (selected && !selected.active) setActiveTab('All')
+  }, [activeLocationsOnly, activeTab, locations])
 
   useEffect(() => {
     let mounted = true
@@ -60,6 +67,7 @@ export default function ImageGallery() {
         const data = await fetchImages({
           activeOnly,
           locationOptions: locations,
+          userId,
         })
         if (mounted) setImages(data)
       } catch (error) {
@@ -75,7 +83,7 @@ export default function ImageGallery() {
     return () => {
       mounted = false
     }
-  }, [activeOnly, locations])
+  }, [activeOnly, locations, userId])
 
   const counts = useMemo(() => images.reduce((totals, image) => {
     if (image.locationId != null) {
@@ -85,31 +93,51 @@ export default function ImageGallery() {
     return totals
   }, {}), [images])
   const selectedLocation = locations.find((location) => location.name === activeTab)
+  const visibleLocations = activeLocationsOnly
+    ? locations.filter((location) => location.active)
+    : locations
 
   const filtered = useMemo(() => {
-    return images.filter((img) => {
+    const activeLocationIds = new Set(locations
+      .filter((location) => location.active)
+      .map((location) => String(location.id)))
+    return images.map((image) => {
+      const matchedLocation = locations.find((location) => (
+        image.locationId != null && String(location.id) === String(image.locationId)
+      ))
+      return matchedLocation ? { ...image, location: matchedLocation.name } : image
+    }).filter((img) => {
       if (activeTab !== 'All') {
         const matchedById = selectedLocation?.id != null
           && img.locationId != null
           && String(img.locationId) === String(selectedLocation.id)
         if (!matchedById && img.location !== activeTab) return false
       }
+      if (activeLocationsOnly && !activeLocationIds.has(String(img.locationId))) return false
       if (activeOnly && !img.active) return false
       return true
     }).sort((a, b) => a.order - b.order)
-  }, [images, activeTab, activeOnly, selectedLocation])
+  }, [images, locations, activeTab, activeLocationsOnly, activeOnly, selectedLocation])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [activeTab, activeOnly, images.length])
+  }, [activeTab, activeLocationsOnly, activeOnly])
 
   const itemsPerPage = 21
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
+
   const pageStart = (currentPage - 1) * itemsPerPage
   const pageEnd = Math.min(filtered.length, pageStart + itemsPerPage)
   const currentPageImages = filtered.slice(pageStart, pageEnd)
 
-  const openCreate = () => setUploadModal({ open: true, mode: 'create', initial: null })
+  const openCreate = () => setUploadModal({
+    open: true,
+    mode: 'create',
+    initial: selectedLocation ? { locationId: selectedLocation.id } : null,
+  })
   const openEdit = (img) => setUploadModal({ open: true, mode: 'edit', initial: img })
 
   const openEditLocation = async (location) => {
@@ -132,7 +160,7 @@ export default function ImageGallery() {
         ? await updateLocation(locationModal.initial.id, form)
         : await createLocation(form)
       if (!saved) throw new Error('The location was saved but no details were returned.')
-      setLocations(await fetchLocations())
+      setLocations(await fetchLocations({ userId, activeOnly: false }))
       if (activeTab === locationModal.initial?.name || !editing) setActiveTab(saved.name)
       toast.success(`"${saved.name}" was ${editing ? 'updated' : 'created'}.`, {
         title: editing ? 'Location updated' : 'Location created',
@@ -168,14 +196,17 @@ export default function ImageGallery() {
         if (!response) throw new Error('Upload failed')
         setImages((current) => [response, ...current.filter((item) => item.id !== response.id)])
         try {
-          const refreshed = await fetchImages({ locationOptions: locations })
-          setImages(refreshed.map((item) => String(item.id) === String(response.id)
-            ? {
+          const refreshed = await fetchImages({ locationOptions: locations, userId })
+          setImages(refreshed.map((item) => {
+            if (String(item.id) !== String(response.id)) return item
+            const locationId = item.locationId ?? response.locationId ?? formData.location
+            const matchedLocation = locations.find((location) => String(location.id) === String(locationId))
+            return {
               ...item,
-              locationId: item.locationId == null || String(item.locationId) === '0' ? response.locationId : item.locationId,
-              location: response.location,
+              locationId,
+              location: matchedLocation?.name || item.location,
             }
-            : item))
+          }))
           setImageError('')
         } catch (refreshError) {
           setImageError(refreshError.message || 'The image uploaded, but the gallery could not refresh.')
@@ -184,7 +215,9 @@ export default function ImageGallery() {
       } else {
         const response = await updateImage(uploadModal.initial.id, formData, locations)
         if (!response) throw new Error('Update failed')
-        setImages((prev) => prev.map((i) => (i.id === response.id ? response : i)))
+        const updatedImage = { ...response, active: formData.active }
+        rememberInactiveImage(updatedImage, userId)
+        setImages((prev) => prev.map((image) => (image.id === response.id ? updatedImage : image)))
         toast.success('Image details updated.', { title: 'Changes saved' })
       }
       setUploadModal({ open: false, mode: 'create', initial: null })
@@ -199,13 +232,17 @@ export default function ImageGallery() {
 
   const toggleActive = async (img) => {
     try {
+      const nextActive = !img.active
       const response = await updateImage(img.id, {
         ...img,
-        active: !img.active,
+        active: nextActive,
       })
       if (!response) throw new Error('Unable to update image status')
-      setImages((prev) => prev.map((i) => (i.id === response.id ? response : i)))
-      toast.info(`"${response.title || 'Untitled'}" is now ${response.active ? 'active' : 'inactive'}.`)
+      const updatedImage = { ...img, ...response, active: nextActive }
+      rememberInactiveImage(updatedImage, userId)
+      setImages((prev) => prev.map((image) => (image.id === img.id ? updatedImage : image)))
+      if (!nextActive) setActiveOnly(false)
+      toast.info(`"${response.title || img.title || 'Untitled'}" is now ${nextActive ? 'active' : 'inactive'}.`)
     } catch (error) {
       toast.error(error.message || 'Unable to change image status.')
     }
@@ -213,7 +250,7 @@ export default function ImageGallery() {
 
   const confirmDelete = async () => {
     try {
-      const success = await deleteImage(deleteTarget.id)
+      const success = await deleteImage(deleteTarget.id, userId)
       if (!success) throw new Error('Delete failed')
       setImages((prev) => prev.filter((i) => i.id !== deleteTarget.id))
       toast.success(`"${deleteTarget.title || 'Untitled'}" was deleted.`)
@@ -224,7 +261,11 @@ export default function ImageGallery() {
   }
 
   const tabCount = (tab) => {
-    if (tab === 'All') return images.length
+    if (tab === 'All') {
+      if (!activeLocationsOnly) return images.length
+      const activeLocationIds = new Set(visibleLocations.map((location) => String(location.id)))
+      return images.filter((image) => activeLocationIds.has(String(image.locationId))).length
+    }
     const location = locations.find((item) => item.name === tab)
     return location?.id == null ? 0 : counts[String(location.id)] || 0
   }
@@ -247,20 +288,22 @@ export default function ImageGallery() {
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Images</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{images.length} images across {locations.length} locations</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setLocationModal({ open: true, mode: 'create', initial: null })}>
-            <Plus className="h-4 w-4" /> Add Location
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Upload Image
-          </Button>
-        </div>
+        {allowCreate && (
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setLocationModal({ open: true, mode: 'create', initial: null })}>
+              <Plus className="h-4 w-4" /> Add Location
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Upload Image
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filter tabs + active toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {['All', ...locations.map((location) => location.name)].map((tab) => {
+          {['All', ...visibleLocations.map((location) => location.name)].map((tab) => {
             const location = locations.find((item) => item.name === tab)
             const active = activeTab === tab
             return (
@@ -314,10 +357,16 @@ export default function ImageGallery() {
           })}
         </div>
 
-        <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-200 transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700">
-          <Toggle checked={activeOnly} onChange={setActiveOnly} />
-          Active only
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-200 transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700">
+            <Toggle checked={activeLocationsOnly} onChange={setActiveLocationsOnly} />
+            Active Locations only
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-200 transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700">
+            <Toggle checked={activeOnly} onChange={setActiveOnly} />
+            Active Images only
+          </label>
+        </div>
       </div>
 
       {/* Grid or empty state */}
@@ -331,11 +380,13 @@ export default function ImageGallery() {
           icon={ImageIcon}
           title={activeOnly ? 'No active images here' : 'No images yet'}
           description={
-            activeOnly
+            !allowCreate
+              ? 'No images have been added to this location yet.'
+              : activeOnly
               ? `There are no active images in ${activeTab === 'All' ? 'any location' : activeTab}. Toggle the filter off or upload a new image.`
               : `Upload your first image to ${activeTab === 'All' ? 'get started' : activeTab}.`
           }
-          action={<Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" /> Upload Image</Button>}
+          action={allowCreate && <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4" /> Upload Image</Button>}
         />
         )
       ) : (
@@ -470,6 +521,11 @@ ImageCard.propTypes = {
   onEdit: PropTypes.func.isRequired,
   onToggle: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
+}
+
+ImageGallery.propTypes = {
+  userId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  allowCreate: PropTypes.bool,
 }
 
 function ImageCard({ image, onEdit, onToggle, onDelete }) {

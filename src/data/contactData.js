@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getAuthHeaders } from '../context/AuthContext'
+import { getApiBaseUrl, getAuthHeaders } from '../context/authApi'
 
 export const statuses = ['new', 'read', 'replied']
 
@@ -45,7 +45,7 @@ export async function fetchContacts() {
         raw: m,
       }
     })
-  } catch (err) {
+  } catch {
     return []
   }
 }
@@ -82,7 +82,7 @@ export async function fetchContact(id) {
       minutesAgo,
       raw: m,
     }
-  } catch (err) {
+  } catch {
     return null
   }
 }

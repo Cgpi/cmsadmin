@@ -18,7 +18,7 @@ export default function NotFound() {
         <p className="mt-6 text-5xl font-bold tracking-tight text-slate-900 dark:text-white">404</p>
         <h1 className="mt-3 text-lg font-semibold text-slate-900 dark:text-white">Page not found</h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          The page you're looking for doesn't exist or may have been moved.
+          The page you&apos;re looking for doesn&apos;t exist or may have been moved.
         </p>
         <Link to="/dashboard" className="mt-6 inline-block">
           <Button variant="secondary">

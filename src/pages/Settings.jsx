@@ -4,9 +4,9 @@ import { User, Lock, Sun, Moon, Check } from 'lucide-react'
 import AppShell from '../components/layout/AppShell'
 import { Card } from '../components/ui/Card'
 import Button from '../components/ui/Button'
-import { useToast } from '../components/ui/Toast'
-import { useTheme } from '../components/ui/ThemeProvider'
-import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ui/useToast'
+import { useTheme } from '../components/ui/useTheme'
+import { useAuth } from '../context/useAuth'
 import { cn } from '../lib/utils'
 
 const inputBase =

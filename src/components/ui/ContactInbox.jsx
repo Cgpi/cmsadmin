@@ -10,14 +10,14 @@ import Button from './Button'
 import Modal from './Modal'
 import EmptyState from './EmptyState'
 import { Skeleton } from './Skeleton'
-import { useToast } from './Toast'
+import { useToast } from './useToast'
 import { contacts as initialContacts, statusConfig, countByStatus, relativeTime, fetchContacts, fetchContact } from '../../data/contactData'
 import { cn } from '../../lib/utils'
 
 const filters = ['All', 'New', 'Read', 'Replied']
 const statusFilterKey = { All: 'All', New: 'new', Read: 'read', Replied: 'replied' }
 
-export default function ContactInbox({ siteName }) {
+export default function ContactInbox() {
   const [contacts, setContacts] = useState(initialContacts)
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('All')
@@ -267,7 +267,7 @@ export default function ContactInbox({ siteName }) {
         <div className="flex items-start gap-3 rounded-xl bg-red-50 p-4 ring-1 ring-inset ring-red-100">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
           <p className="text-sm text-red-800">
-            You're about to delete the message from <span className="font-semibold">{deleteTarget?.sender}</span>.
+            You&apos;re about to delete the message from <span className="font-semibold">{deleteTarget?.sender}</span>.
             This action cannot be undone.
           </p>
         </div>

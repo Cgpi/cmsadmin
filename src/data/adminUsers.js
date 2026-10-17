@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getAuthHeaders } from '../context/AuthContext'
+import { getApiBaseUrl, getAuthHeaders } from '../context/authApi'
 
 export function normalizeAdminUser(item) {
   const isActive = item.is_active ?? item.active ?? item.status === 'active'
@@ -10,6 +10,7 @@ export function normalizeAdminUser(item) {
 
   return {
     id: item.id,
+    userId: item.user_id ?? item.id,
     siteName: item.site_name || item.siteName || item.site || '',
     contactName: item.name || item.contact_name || item.contactName || '',
     email: item.email || '',

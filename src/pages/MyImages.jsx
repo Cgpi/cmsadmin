@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion'
 import AppShell from '../components/layout/AppShell'
 import ImageGallery from '../components/ui/ImageGallery'
+import { useAuth } from '../context/useAuth'
 
 export default function MyImages() {
+  const { user } = useAuth()
+
   return (
     <AppShell pageTitle="My Images">
       <motion.div
@@ -10,7 +13,7 @@ export default function MyImages() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <ImageGallery />
+        <ImageGallery userId={user?.id} />
       </motion.div>
     </AppShell>
   )

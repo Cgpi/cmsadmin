@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, Package, Inbox, ImageIcon, TableIcon } from 'lucide-react'
+import { Bell, Package, Inbox } from 'lucide-react'
 import AppShell from '../components/layout/AppShell'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
-import { Skeleton, CardSkeleton, TableRowSkeleton, ImageGridSkeleton } from '../components/ui/Skeleton'
+import { CardSkeleton, TableRowSkeleton, ImageGridSkeleton } from '../components/ui/Skeleton'
 import EmptyState from '../components/ui/EmptyState'
-import { useToast } from '../components/ui/Toast'
+import { useToast } from '../components/ui/useToast'
 
 export default function ComponentsDemo() {
   const [modalOpen, setModalOpen] = useState(false)

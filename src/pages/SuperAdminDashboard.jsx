@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import {
   Building2, CheckCircle2, ImageIcon, MessageSquare,
-  TrendingUp, TrendingDown, ArrowUpRight, ArrowRight,
+  TrendingUp, TrendingDown, ArrowRight,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AppShell from '../components/layout/AppShell'
@@ -9,7 +9,7 @@ import { Card } from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { sites, recentActivity, computeStats, relativeTime } from '../data/adminData'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 const stats = computeStats(sites)
 
@@ -56,7 +56,7 @@ export default function SuperAdminDashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Welcome back, {firstName}</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Here's the platform overview across all client sites.</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Here&apos;s the platform overview across all client sites.</p>
             </div>
             <Badge tone="amberSolid" dot>Super Admin</Badge>
           </div>

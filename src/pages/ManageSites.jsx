@@ -23,7 +23,7 @@ import Modal from "../components/ui/Modal";
 import DropdownMenu from "../components/ui/DropdownMenu";
 import EmptyState from "../components/ui/EmptyState";
 import SiteFormModal from "../components/admin/SiteFormModal";
-import { useToast } from "../components/ui/Toast";
+import { useToast } from "../components/ui/useToast";
 import {
   fetchAdminUsers,
   createAdminUser,

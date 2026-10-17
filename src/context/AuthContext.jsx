@@ -1,9 +1,7 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import { AuthStateContext } from './AuthStateContext'
+import { API_BASE_URL, AUTH_TOKEN_KEY } from './authApi'
 
-const AuthContext = createContext(null)
-
-const API_BASE_URL = 'https://www.cgpisoftware.com/vpconstruction/api'
-const AUTH_TOKEN_KEY = 'vp_auth_token'
 const AUTH_USER_KEY = 'vp_auth_user'
 
 function getLoginData(payload) {
@@ -87,32 +85,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthStateContext.Provider value={{ user, token, login, logout }}>
       {children}
-    </AuthContext.Provider>
+    </AuthStateContext.Provider>
   )
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
-}
-
-export function getAuthHeaders() {
-  const existingToken = typeof window !== 'undefined' ? window.localStorage.getItem(AUTH_TOKEN_KEY) : null
-  const token = existingToken ? existingToken : ''
-  const bearer = token.startsWith('Bearer ') ? token : token ? `Bearer ${token}` : ''
-  const headers = {}
-
-  if (bearer) {
-    headers['X-authorization'] = bearer
-    headers.Authorization = bearer
-  }
-
-  return headers
-}
-
-export function getApiBaseUrl() {
-  return API_BASE_URL
 }

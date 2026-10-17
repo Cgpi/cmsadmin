@@ -1,10 +1,9 @@
-import { createContext, useContext, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
-
-const ToastContext = createContext(null)
+import { ToastContext } from './ToastContext'
 
 const config = {
   success: { icon: CheckCircle2, ring: 'ring-emerald-200', iconColor: 'text-emerald-600', bar: 'bg-emerald-500' },
@@ -96,10 +95,4 @@ function ToastItem({ toast, onClose }) {
       )}
     </motion.div>
   )
-}
-
-export function useToast() {
-  const ctx = useContext(ToastContext)
-  if (!ctx) throw new Error('useToast must be used within ToastProvider')
-  return ctx
 }

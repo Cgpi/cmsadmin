@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import PropTypes from 'prop-types'
-import { ImagePlus } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 
@@ -14,9 +13,7 @@ const emptyForm = {
 
 export default function LocationFormModal({ open, mode = 'create', initial, onClose, onSubmit }) {
   const [form, setForm] = useState(emptyForm)
-  const [image, setImage] = useState(null)
   const [loading, setLoading] = useState(false)
-  const fileInputRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
@@ -28,7 +25,6 @@ export default function LocationFormModal({ open, mode = 'create', initial, onCl
       isActive: initial?.active ?? true,
       sortOrder: initial?.sortOrder ?? 0,
     })
-    setImage(null)
   }, [open, mode, initial])
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
@@ -38,7 +34,7 @@ export default function LocationFormModal({ open, mode = 'create', initial, onCl
     if (!form.name.trim() || loading) return
     setLoading(true)
     try {
-      const result = await onSubmit?.({ ...form, image })
+      const result = await onSubmit?.(form)
       if (result !== false) onClose?.()
     } finally {
       setLoading(false)
@@ -81,34 +77,15 @@ export default function LocationFormModal({ open, mode = 'create', initial, onCl
             className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Sort order">
-            <input
-              type="number"
-              min="0"
-              value={form.sortOrder}
-              onChange={(event) => set('sortOrder', Number(event.target.value))}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Image" optional>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex h-11 w-full items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-            >
-              <ImagePlus className="h-4 w-4 shrink-0" />
-              <span className="truncate">{image?.name || 'Choose image'}</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => setImage(event.target.files?.[0] || null)}
-            />
-          </Field>
-        </div>
+        <Field label="Sort order">
+          <input
+            type="number"
+            min="0"
+            value={form.sortOrder}
+            onChange={(event) => set('sortOrder', Number(event.target.value))}
+            className={inputClass}
+          />
+        </Field>
         <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Active</span>
           <button

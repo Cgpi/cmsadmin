@@ -8,8 +8,8 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import Badge from '../ui/Badge'
-import { useTheme } from '../ui/ThemeProvider'
-import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../ui/useTheme'
+import { useAuth } from '../../context/useAuth'
 import navItems, { superAdminNav } from './navItems'
 
 const iconMap = {

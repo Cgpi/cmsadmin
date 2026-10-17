@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Mail, Lock, HardHat, ArrowRight } from 'lucide-react'
 import Button from '../components/ui/Button'
-import { useToast } from '../components/ui/Toast'
-import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ui/useToast'
+import { useAuth } from '../context/useAuth'
 
 const heroImg = 'https://images.pexels.com/photos/17297091/pexels-photo-17297091.jpeg?auto=compress&cs=tinysrgb&h=1200&w=900'
 
@@ -139,7 +139,7 @@ export default function Login() {
             Managing projects, crews, and equipment — all in one place.
           </h2>
           <p className="mt-4 max-w-md text-sm text-slate-300">
-            VP Construction's internal platform gives your team real-time visibility across every job site.
+            VP Construction&apos;s internal platform gives your team real-time visibility across every job site.
           </p>
         </motion.div>
       </div>

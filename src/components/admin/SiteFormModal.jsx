@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
-import { useToast } from '../ui/Toast'
+import { useToast } from '../ui/useToast'
 import { cn } from '../../lib/utils'
 
 const empty = { siteName: '', contactName: '', email: '', password: '', active: true }

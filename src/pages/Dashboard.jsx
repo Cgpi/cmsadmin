@@ -6,8 +6,8 @@ import AppShell from '../components/layout/AppShell'
 import { Card } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import UploadImageModal from '../components/admin/UploadImageModal'
-import { useToast } from '../components/ui/Toast'
-import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ui/useToast'
+import { useAuth } from '../context/useAuth'
 import { computeImageStats, fetchImages, createImage } from '../data/imageData'
 import { fetchLocations } from '../data/locationData'
 
@@ -32,25 +32,30 @@ export default function Dashboard() {
   const siteName = user?.site_name || 'vp-construction-pune'
 
   useEffect(() => {
+    if (user?.id == null) return undefined
+
     let mounted = true
-    fetchLocations()
-      .then((result) => {
-        if (mounted) setLocations(result)
-      })
-      .catch((error) => {
-        if (mounted) setApiError(error.message || 'Unable to load active locations.')
-      })
-    fetchImages()
-      .then((result) => {
-        if (mounted) setStats(computeImageStats(result))
-      })
-      .catch((error) => {
-        if (mounted) setApiError(error.message || 'Unable to load dashboard images.')
-      })
+    async function loadSiteData() {
+      try {
+        const siteLocations = await fetchLocations({ userId: user.id })
+        if (!mounted) return
+        setLocations(siteLocations)
+
+        const siteImages = await fetchImages({
+          locationOptions: siteLocations,
+          userId: user.id,
+        })
+        if (mounted) setStats(computeImageStats(siteImages))
+      } catch (error) {
+        if (mounted) setApiError(error.message || 'Unable to load site images and locations.')
+      }
+    }
+
+    loadSiteData()
     return () => {
       mounted = false
     }
-  }, [])
+  }, [user?.id])
 
   const statCards = [
     { label: 'Total Images', value: stats.totalImages, icon: Images, tone: 'bg-amber-50 text-amber-700' },

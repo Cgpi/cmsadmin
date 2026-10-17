@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getAuthHeaders } from '../context/AuthContext'
+import { getApiBaseUrl, getAuthHeaders } from '../context/authApi'
 
 export const locations = ['Home', 'Gallery', 'About', 'Services']
 
@@ -10,6 +10,7 @@ export const placeholderPreview =
 
 const IMAGE_LOCATION_TYPES = new Set(['home', 'gallery', 'about', 'services'])
 const IMAGE_LOCATION_CACHE_KEY = 'vp_image_location_ids'
+const INACTIVE_IMAGE_CACHE_KEY = 'vp_inactive_images'
 
 function readImageLocationCache() {
   if (typeof window === 'undefined') return {}
@@ -32,6 +33,40 @@ function forgetImageLocation(imageId) {
   const cache = readImageLocationCache()
   delete cache[String(imageId)]
   window.localStorage.setItem(IMAGE_LOCATION_CACHE_KEY, JSON.stringify(cache))
+}
+
+function readInactiveImageCache(userId) {
+  if (userId == null || typeof window === 'undefined') return {}
+  try {
+    const cache = JSON.parse(window.localStorage.getItem(`${INACTIVE_IMAGE_CACHE_KEY}:${userId}`) || '{}')
+    return cache && typeof cache === 'object' && !Array.isArray(cache) ? cache : {}
+  } catch {
+    return {}
+  }
+}
+
+export function rememberInactiveImage(image, userId) {
+  if (userId == null || image?.id == null || typeof window === 'undefined') return
+  const cacheKey = `${INACTIVE_IMAGE_CACHE_KEY}:${userId}`
+  const cache = readInactiveImageCache(userId)
+  if (image.active) {
+    delete cache[String(image.id)]
+  } else {
+    cache[String(image.id)] = {
+      id: image.id,
+      locationId: image.locationId,
+      title: image.title,
+      location: image.location,
+      active: false,
+      order: image.order,
+      url: image.url,
+    }
+  }
+  try {
+    window.localStorage.setItem(cacheKey, JSON.stringify(cache))
+  } catch {
+    return
+  }
 }
 
 function toImageLocationType(location) {
@@ -90,6 +125,7 @@ export function normalizeImage(item, locationOptions = [], fallbackLocationId) {
   ))
   return {
     id: imageId,
+    userId: item.user_id ?? item.userId,
     locationId: locationId ?? matchedLocation?.id ?? null,
     title: item.title || 'Untitled',
     location: matchedLocation?.name || (rawLocation ? capitalize(rawLocation.replace(/[-_]/g, ' ')) : 'Gallery'),
@@ -106,8 +142,9 @@ function capitalize(value) {
     .replace(/(^|\s)\w/g, (match) => match.toUpperCase())
 }
 
-export async function fetchImages({ location, activeOnly, locationOptions = [] } = {}) {
+export async function fetchImages({ location, activeOnly, locationOptions = [], userId } = {}) {
   const params = new URLSearchParams()
+  if (userId != null) params.set('user_id', String(userId))
   if (location && location !== 'All') {
     params.set('location', toImageLocationType(location))
   }
@@ -117,7 +154,40 @@ export async function fetchImages({ location, activeOnly, locationOptions = [] }
     method: 'GET',
     headers: { Accept: 'application/json', ...getAuthHeaders() },
   })
-  return parseImageList(response, locationOptions)
+  const fetchedImages = await parseImageList(response, locationOptions)
+
+  if (userId != null) {
+    const userImages = fetchedImages.filter((image) => (
+      image.userId == null || String(image.userId) === String(userId)
+    ))
+    const imagesById = new Map(userImages.map((image) => [String(image.id), image]))
+    imagesById.forEach((image) => rememberInactiveImage(image, userId))
+    const cachedImages = Object.values(readInactiveImageCache(userId))
+      .filter((image) => !imagesById.has(String(image.id)))
+    const locationIds = new Set(locationOptions.map((locationOption) => String(locationOption.id)))
+    const inactiveImages = await Promise.all(cachedImages.map(async (cachedImage) => {
+      if (cachedImage.locationId != null && !locationIds.has(String(cachedImage.locationId))) {
+        rememberInactiveImage({ ...cachedImage, active: true }, userId)
+        return null
+      }
+      try {
+        const image = await fetchImage(cachedImage.id, locationOptions)
+        rememberInactiveImage(image, userId)
+        return image.active ? null : image
+      } catch (error) {
+        if (error.status === 404 || error.status === 410) {
+          rememberInactiveImage({ ...cachedImage, active: true }, userId)
+          return null
+        }
+        return cachedImage
+      }
+    }))
+
+    inactiveImages.filter(Boolean).forEach((image) => imagesById.set(String(image.id), image))
+    return [...imagesById.values()].filter((image) => !activeOnly || image.active)
+  }
+
+  return fetchedImages
 }
 
 export async function fetchChooseUsImages(locationOptions = []) {
@@ -136,7 +206,9 @@ export async function fetchImage(id, locationOptions = []) {
   })
   if (!response.ok) {
     const body = await response.json().catch(() => null)
-    throw new Error(body?.message || body?.error || `Failed to load image: ${response.status}`)
+    const error = new Error(body?.message || body?.error || `Failed to load image: ${response.status}`)
+    error.status = response.status
+    throw error
   }
 
   const payload = await response.json().catch(() => null)
@@ -235,7 +307,7 @@ export async function updateImage(id, changes, locationOptions = []) {
   return image ? normalizeImage(image, locationOptions, matchedLocation?.id) : null
 }
 
-export async function deleteImage(id) {
+export async function deleteImage(id, userId) {
   if (!id) throw new Error('An image ID is required.')
   const response = await fetch(`${getApiBaseUrl()}/images/${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -246,6 +318,7 @@ export async function deleteImage(id) {
     throw new Error(payload?.message || payload?.error || `Failed to delete image: ${response.status}`)
   }
   forgetImageLocation(id)
+  rememberInactiveImage({ id, active: true }, userId)
   return true
 }
 

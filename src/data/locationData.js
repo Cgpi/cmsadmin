@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getAuthHeaders } from '../context/AuthContext'
+import { getApiBaseUrl, getAuthHeaders } from '../context/authApi'
 
 function capitalize(value) {
   return String(value)
@@ -7,13 +7,18 @@ function capitalize(value) {
 }
 
 function normalizeLocation(item) {
+  const activeValue = item.is_active ?? item.active ?? item.status
+  const active = typeof activeValue === 'string'
+    ? !['0', 'false', 'inactive'].includes(activeValue.trim().toLowerCase())
+    : activeValue == null ? true : Boolean(activeValue)
+
   return {
     id: item.id,
     name: capitalize(item.name || item.slug || 'Untitled location'),
     slug: item.slug || '',
     description: item.description || '',
     imagePath: item.image_path || null,
-    active: item.is_active ?? true,
+    active,
     sortOrder: item.sort_order ?? 0,
     imagesCount: item.images_count ?? 0,
     raw: item,
@@ -30,8 +35,12 @@ function unwrapLocation(payload) {
   return payload?.data?.location || payload?.data || payload?.location || payload
 }
 
-export async function fetchLocations() {
-  const response = await fetch(`${getApiBaseUrl()}/locations?active_only=1`, {
+export async function fetchLocations({ userId, activeOnly = true } = {}) {
+  const params = new URLSearchParams()
+  if (userId != null) params.set('user_id', String(userId))
+  params.set('active_only', activeOnly ? '1' : '0')
+  const endpoint = userId == null ? '/locations' : '/public/locations'
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}?${params.toString()}`, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -108,9 +117,37 @@ export function createLocation(fields) {
   return saveLocation('/locations', 'POST', fields, 'Failed to create location')
 }
 
-export function updateLocation(id, fields) {
-  if (!id) throw new Error('A location ID is required to update a location.')
-  return saveLocation(`/locations/${id}`, 'POST', fields, 'Failed to update location')
+export async function updateLocation(id, fields) {
+  if (id == null || id === '') throw new Error('A location ID is required to update a location.')
+
+  const response = await fetch(`${getApiBaseUrl()}/locations/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      name: fields.name.trim(),
+      description: fields.description.trim(),
+      is_active: Boolean(fields.isActive),
+    }),
+  })
+
+  if (!response.ok) {
+    throw await responseError(response, 'Failed to update location')
+  }
+
+  const payload = await response.json().catch(() => null)
+  const updatedLocation = unwrapLocation(payload)
+  return normalizeLocation(updatedLocation?.id != null ? updatedLocation : {
+    id,
+    name: fields.name,
+    slug: fields.slug,
+    description: fields.description,
+    is_active: fields.isActive,
+    sort_order: fields.sortOrder,
+  })
 }
 
 export async function deleteLocation(id) {
