@@ -108,19 +108,19 @@ export default function Login() {
           </motion.form>
 
           {/* Demo credentials helper */}
-          <motion.div
+          {/* <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Demo Credentials</p>
+          > */}
+            {/* <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Demo Credentials</p>
             <div className="mt-2 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
               <p><span className="font-medium text-slate-700 dark:text-slate-300">Super Admin:</span> admin@vpconstruction.com</p>
               <p><span className="font-medium text-slate-700 dark:text-slate-300">Sub-Admin:</span> user1@vpconstruction.com</p>
               <p className="pt-1 text-slate-400 dark:text-slate-500">Password for both: <span className="font-mono font-medium text-amber-600">password</span></p>
-            </div>
-          </motion.div>
+            </div> */}
+          {/* </motion.div> */}
         </motion.div>
       </div>
 
