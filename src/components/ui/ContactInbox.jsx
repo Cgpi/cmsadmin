@@ -11,7 +11,7 @@ import Modal from './Modal'
 import EmptyState from './EmptyState'
 import { Skeleton } from './Skeleton'
 import { useToast } from './useToast'
-import { contacts as initialContacts, statusConfig, countByStatus, relativeTime, fetchContacts, fetchContact } from '../../data/contactData'
+import { contacts as initialContacts, statusConfig, countByStatus, relativeTime, fetchContacts, fetchContact, updateContactStatus, deleteContact } from '../../data/contactData'
 import { cn } from '../../lib/utils'
 
 const filters = ['All', 'New', 'Read', 'Replied']
@@ -26,6 +26,8 @@ export default function ContactInbox() {
   const [mobileView, setMobileView] = useState('list')
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const toast = useToast()
 
   useEffect(() => {
@@ -83,18 +85,35 @@ export default function ContactInbox() {
     setContacts((prev) => prev.map((m) => (m.id === id && m.status === 'new' ? { ...m, status: 'read' } : m)))
   }
 
-  const changeStatus = (newStatus) => {
-    if (!selected) return
+  const changeStatus = async (newStatus) => {
+    if (!selected || updatingStatus) return
     setStatusMenuOpen(false)
     if (selected.status === newStatus) return
-    setContacts((prev) => prev.map((m) => (m.id === selected.id ? { ...m, status: newStatus } : m)))
-    toast.success(`Marked as ${statusConfig[newStatus].label}.`)
+    setUpdatingStatus(true)
+    try {
+      await updateContactStatus(selected.id, newStatus)
+      setContacts((prev) => prev.map((m) => (m.id === selected.id ? { ...m, status: newStatus } : m)))
+      toast.success(`Marked as ${statusConfig[newStatus].label}.`)
+    } catch (error) {
+      toast.error(error.message || 'Unable to update message status.')
+    } finally {
+      setUpdatingStatus(false)
+    }
   }
 
-  const confirmDelete = () => {
-    setContacts((prev) => prev.filter((m) => m.id !== deleteTarget.id))
-    toast.success(`Message from ${deleteTarget.sender} was deleted.`)
-    setDeleteTarget(null)
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    try {
+      await deleteContact(deleteTarget.id)
+      setContacts((prev) => prev.filter((m) => m.id !== deleteTarget.id))
+      toast.success(`Message from ${deleteTarget.sender} was deleted.`)
+      setDeleteTarget(null)
+    } catch (error) {
+      toast.error(error.message || 'Unable to delete message.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const replyMailto = selected ? `mailto:${selected.email}?subject=Re: ${encodeURIComponent(selected.subject)}` : '#'
@@ -241,6 +260,7 @@ export default function ContactInbox() {
                 onDelete={() => setDeleteTarget(selected)}
                 statusMenuOpen={statusMenuOpen}
                 setStatusMenuOpen={setStatusMenuOpen}
+                updatingStatus={updatingStatus}
                 replyMailto={replyMailto}
               />
             )}
@@ -258,7 +278,7 @@ export default function ContactInbox() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDelete}>
+            <Button variant="danger" onClick={confirmDelete} disabled={deleting}>
               <Trash2 className="h-4 w-4" /> Delete
             </Button>
           </>
@@ -276,7 +296,7 @@ export default function ContactInbox() {
   )
 }
 
-function DetailPanel({ message, onBack, onChangeStatus, onDelete, statusMenuOpen, setStatusMenuOpen, replyMailto }) {
+function DetailPanel({ message, onBack, onChangeStatus, onDelete, statusMenuOpen, setStatusMenuOpen, updatingStatus, replyMailto }) {
   const cfg = statusConfig[message.status]
   return (
     <div className="flex h-full flex-col">
@@ -318,6 +338,7 @@ function DetailPanel({ message, onBack, onChangeStatus, onDelete, statusMenuOpen
                     <button
                       key={key}
                       onClick={() => onChangeStatus(key)}
+                      disabled={updatingStatus}
                       className={cn(
                         'flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors hover:bg-slate-50',
                         message.status === key ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white',

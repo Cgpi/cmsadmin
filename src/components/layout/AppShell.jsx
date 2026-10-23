@@ -10,6 +10,7 @@ import { cn } from '../../lib/utils'
 import Badge from '../ui/Badge'
 import { useTheme } from '../ui/useTheme'
 import { useAuth } from '../../context/useAuth'
+import { fetchContacts } from '../../data/contactData'
 import navItems, { superAdminNav } from './navItems'
 
 const iconMap = {
@@ -198,6 +199,24 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user: user
 
 function Topbar({ pageTitle, user, onMenuClick }) {
   const { theme, toggleTheme } = useTheme()
+  const navigate = useNavigate()
+  const [hasNewContacts, setHasNewContacts] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    const refreshNewContacts = async () => {
+      const contacts = await fetchContacts()
+      if (mounted) setHasNewContacts(contacts.some((contact) => contact.status === 'new'))
+    }
+
+    refreshNewContacts()
+    const intervalId = window.setInterval(refreshNewContacts, 30000)
+    return () => {
+      mounted = false
+      window.clearInterval(intervalId)
+    }
+  }, [])
+
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-900/80">
       <button
@@ -233,11 +252,15 @@ function Topbar({ pageTitle, user, onMenuClick }) {
       </button>
 
       <button
+        onClick={() => navigate('/dashboard/contacts')}
         className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-        aria-label="Notifications"
+        aria-label="Open contact messages"
+        title="Open contact messages"
       >
         <Bell className="h-5 w-5" />
-        <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900" />
+        {hasNewContacts && (
+          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900" />
+        )}
       </button>
       <img
         src={user.avatar}

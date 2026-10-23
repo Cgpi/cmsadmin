@@ -87,6 +87,49 @@ export async function fetchContact(id) {
   }
 }
 
+async function contactMutation(url, options, fallbackMessage) {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: 'application/json',
+      ...getAuthHeaders(),
+      ...options.headers,
+    },
+  })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    let message = body
+    try {
+      const payload = JSON.parse(body)
+      message = payload.message || payload.error || Object.values(payload.errors || {}).flat().join(' ') || body
+    } catch {
+      message = body
+    }
+    throw new Error(message || `${fallbackMessage}: ${res.status}`)
+  }
+}
+
+export async function updateContactStatus(id, status) {
+  await contactMutation(
+    `${getApiBaseUrl()}/contacts/${id}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+    'Unable to update message status',
+  )
+}
+
+export async function deleteContact(id) {
+  await contactMutation(
+    `${getApiBaseUrl()}/contacts/${id}`,
+    { method: 'DELETE' },
+    'Unable to delete message',
+  )
+}
+
 export function relativeTime(minutesAgo) {
   if (minutesAgo < 1) return 'just now'
   if (minutesAgo < 60) return `${minutesAgo}m ago`
