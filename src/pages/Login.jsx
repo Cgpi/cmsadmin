@@ -53,7 +53,7 @@ export default function Login() {
               <HardHat className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-base font-bold tracking-tight text-slate-900 dark:text-white">VP Construction</p>
+              <p className="text-base font-bold tracking-tight text-slate-900 dark:text-white">CGPI Software CMS</p>
               <p className="text-xs text-slate-400 dark:text-slate-500">Admin Platform</p>
             </div>
           </div>
@@ -116,8 +116,8 @@ export default function Login() {
           > */}
             {/* <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Demo Credentials</p>
             <div className="mt-2 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <p><span className="font-medium text-slate-700 dark:text-slate-300">Super Admin:</span> admin@vpconstruction.com</p>
-              <p><span className="font-medium text-slate-700 dark:text-slate-300">Sub-Admin:</span> user1@vpconstruction.com</p>
+              <p><span className="font-medium text-slate-700 dark:text-slate-300">Super Admin:</span> admin@cgpisoftwarecms.com</p>
+              <p><span className="font-medium text-slate-700 dark:text-slate-300">Sub-Admin:</span> user1@cgpisoftwarecms.com</p>
               <p className="pt-1 text-slate-400 dark:text-slate-500">Password for both: <span className="font-mono font-medium text-amber-600">password</span></p>
             </div> */}
           {/* </motion.div> */}
@@ -139,7 +139,7 @@ export default function Login() {
             Managing projects, crews, and equipment — all in one place.
           </h2>
           <p className="mt-4 max-w-md text-sm text-slate-300">
-            VP Construction&apos;s internal platform gives your team real-time visibility across every job site.
+            CGPI Software CMS&apos;s internal platform gives your team real-time visibility across every job site.
           </p>
         </motion.div>
       </div>

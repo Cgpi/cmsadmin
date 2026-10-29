@@ -64,7 +64,7 @@ export default function AppShell({ children, pageTitle = 'Dashboard', user: user
         </div>
         {(!collapsed || isMobile) && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold tracking-tight text-slate-900 dark:text-white">VP Construction</p>
+            <p className="truncate text-sm font-bold tracking-tight text-slate-900 dark:text-white">CGPI Software CMS</p>
             <p className="truncate text-xs text-slate-400 dark:text-slate-500">Admin Platform</p>
           </div>
         )}
