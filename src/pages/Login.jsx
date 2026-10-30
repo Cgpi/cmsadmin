@@ -5,8 +5,8 @@ import { Mail, Lock, HardHat, ArrowRight } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { useToast } from '../components/ui/useToast'
 import { useAuth } from '../context/useAuth'
-
-const heroImg = 'https://images.pexels.com/photos/17297091/pexels-photo-17297091.jpeg?auto=compress&cs=tinysrgb&h=1200&w=900'
+import heroImg from '../assets/loginhero.jpg'
+import cgpiLogo from '../assets/cgpilogo.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -128,6 +128,7 @@ export default function Login() {
       <div className="relative hidden overflow-hidden lg:block">
         <img src={heroImg} alt="Construction cranes against a clear sky" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/50 to-slate-900/20" />
+        <img src={cgpiLogo} alt="CGPI logo" className="absolute right-8 top-8 z-10 w-28 rounded-lg bg-white p-2 object-contain shadow-lg" />
         <motion.div
           className="absolute inset-x-0 bottom-0 p-12"
           initial={{ opacity: 0, y: 24 }}
